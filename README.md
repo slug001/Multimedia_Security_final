@@ -9,6 +9,23 @@
 ## 專案概述 (Project Overview)
 
 ## Related work
+### **攻擊**
+### **BACKDOOR FEDERATED LEARNING BY POISONINGBACKDOOR-CRITICAL LAYERS (ICLR 2024)**
+*   **簡介:** 現有的 FL 攻擊和防禦方法通常著眼於整個模型，卻忽略了一個現象：後門關鍵層 (Backdoor-Critical, BC) layers 的存在——即模型中一小部分主導其漏洞的層。
+攻擊這些 BC layers 可以達到與攻擊整個模型相當的效果，但被最先進 (SOTA) 防禦機制檢測到的機率卻遠低得多。   
+本文提出了一種通用的層替換分析 (Layer Substitution Analysis) 方法，從攻擊者的角度識別和驗證 BC layers。基於識別出的 BC layers，作者精心設計了一種新的後門攻擊方法，該方法能在各種防禦策略下自適應地尋求攻擊效果和隱蔽性之間的平衡。
+大量實驗表明，作者提出的 BC layer 感知後門攻擊方法，即使只有 10% 的惡意客戶端，也能在七種 SOTA 防禦機制下成功植入後門，並且其性能優於最新的後門攻擊方法。
+*   **LINK:** https://arxiv.org/pdf/2308.04466
+*   **CODE:** https://github.com/zhmzm/Poisoning_Backdoor-critical_Layers_Attack
+
+### **防禦**
+### **CrowdGuard: Federated Backdoor Detection inFederated Learning (NDSS 2024)**
+*   **簡介:**
+*   **LINK:** https://www.ndss-symposium.org/wp-content/uploads/2024-233-paper.pdf
+*   **CODE:** https://github.com/trust-tuda/crowdguard?tab=readme-ov-file
+
+---
+### **其他論文**
 ### **DBA: Distributed Backdoor Attacks against Federated Learning**
 
 *   **簡介:** 分布式後門攻擊 (DBA) 是一種針對聯邦學習的先進後門攻擊策略。其核心思想是將一個設計好的全局觸發器 (Global Trigger) 分解成多個局部模式 (Local Patterns)。這些局部模式被分配給不同的、相互串通的惡意客戶端。每個惡意客戶端僅在其本地訓練數據中植入分配給它的特定局部模式，並參與聯邦學習的訓練過程。
