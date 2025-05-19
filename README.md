@@ -11,16 +11,19 @@
 ## Related work
 ### **攻擊**
 ### **BACKDOOR FEDERATED LEARNING BY POISONINGBACKDOOR-CRITICAL LAYERS (ICLR 2024)**
-*   **簡介:** 現有的 FL 攻擊和防禦方法通常著眼於整個模型，卻忽略了一個現象：後門關鍵層 (Backdoor-Critical, BC) layers 的存在——即模型中一小部分主導其漏洞的層。
-攻擊這些 BC layers 可以達到與攻擊整個模型相當的效果，但被最先進 (SOTA) 防禦機制檢測到的機率卻遠低得多。   
-本文提出了一種通用的層替換分析 (Layer Substitution Analysis) 方法，從攻擊者的角度識別和驗證 BC layers。基於識別出的 BC layers，作者精心設計了一種新的後門攻擊方法，該方法能在各種防禦策略下自適應地尋求攻擊效果和隱蔽性之間的平衡。
-大量實驗表明，作者提出的 BC layer 感知後門攻擊方法，即使只有 10% 的惡意客戶端，也能在七種 SOTA 防禦機制下成功植入後門，並且其性能優於最新的後門攻擊方法。
+*   **簡介:**
+>現有的 FL 攻擊和防禦方法通常著眼於整個模型，卻忽略了一個現象：後門關鍵層 (Backdoor-Critical, BC) layers 的存在——即模型中一小部分主導其漏洞的層。攻擊這些 BC layers 可以達到與攻擊整個模型相當的效果，但被最先進 (SOTA) 防禦機制檢測到的機率卻遠低得多。   
+>
+>本文提出了一種通用的層替換分析 (Layer Substitution Analysis) 方法，從攻擊者的角度識別和驗證 BC layers。基於識別出的 BC layers，作者精心設計了一種新的後門攻擊方法，該方法能在各種防禦策略下自適應地尋求攻擊效果和隱蔽性之間的平衡。大量實驗表明，作者提出的 BC layer 感知後門攻擊方法，即使只有 10% 的惡意客戶端，也能在七種 SOTA 防禦機制下成功植入後門，並且其性能優於最新的後門攻擊方法。
 *   **LINK:** https://arxiv.org/pdf/2308.04466
 *   **CODE:** https://github.com/zhmzm/Poisoning_Backdoor-critical_Layers_Attack
 
 ### **防禦**
 ### **CrowdGuard: Federated Backdoor Detection inFederated Learning (NDSS 2024)**
 *   **簡介:**
+>現有的 FL 防護措施有各種局限性：它們可能僅限於特定的數據分佈，或者由於排除良性模型或添加噪聲而降低全局模型的準確性，容易受到自適應的、了解防禦機制的對手攻擊，或者需要服務器訪問本地模型，從而允許數據推斷攻擊。
+>
+>本文提出了一種名為 CrowdGuard 的新型防禦機制，它有效地減輕了 FL 中的後門攻擊，並克服了現有技術的不足。它利用客戶端對各個模型的反饋，分析隱藏層中神經元的行為，並通過迭代剪枝方案消除中毒模型。CrowdGuard 採用位於服務器的堆疊式聚類方案來增強其對惡意客戶端反饋的韌性。評>估結果表明，CrowdGuard 在各種情境（包括 IID 和 non-IID 數據分佈）下均達到了 100% 的真陽性率和真陰性率。此外，CrowdGuard 能夠抵禦自適應攻擊者，同時保持受保護模型的原始性能。為確保機密性，CrowdGuard 在客戶端和服務器端都利用可信執行環境 (TEEs) 構建了一個安全且保護>隱私的架構。
 *   **LINK:** https://www.ndss-symposium.org/wp-content/uploads/2024-233-paper.pdf
 *   **CODE:** https://github.com/trust-tuda/crowdguard?tab=readme-ov-file
 
