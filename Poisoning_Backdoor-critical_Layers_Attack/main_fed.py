@@ -81,7 +81,8 @@ def central_dataset_iid(dataset, dataset_size):
 
 def test_mkdir(path):
     if not os.path.isdir(path):
-        os.mkdir(path)
+        #os.mkdir(path)
+        os.makedirs(path, exist_ok=True)
 
 
 if __name__ == '__main__':
