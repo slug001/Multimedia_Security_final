@@ -526,7 +526,7 @@ if __name__ == '__main__':
     collaborators = [Collaborator(name=name) for name in collaborator_names]
     if torch.cuda.is_available():
         device = torch.device(
-            "cuda:1"
+            "cuda:0"  #1
         )  # This will enable Ray library to reserve available GPU(s) for the task
     else:
         device = torch.device("cpu")
