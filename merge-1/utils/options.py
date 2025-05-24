@@ -16,7 +16,7 @@ def args_parser():
     parser.add_argument('--epochs', type=int, default=500,
                         help="rounds of training")
     parser.add_argument('--num_users', type=int,
-                        default=10, help="number of users: K")
+                        default=100, help="number of users: K")
     parser.add_argument('--frac', type=float, default=0.1,
                         help="the fraction of clients: C")
     parser.add_argument('--malicious',type=float,default=0, help="proportion of mailicious clients")
