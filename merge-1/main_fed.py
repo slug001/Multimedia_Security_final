@@ -10,7 +10,7 @@ from models.Update import LocalUpdate
 from utils.info import print_exp_details, write_info_to_accfile, get_base_info
 from utils.options import args_parser
 from utils.sampling import mnist_iid, mnist_noniid, cifar_iid, cifar_noniid
-from utils.defense import fltrust, multi_krum, get_update, RLR, flame, get_update2, fld_distance, detection, detection1, parameters_dict_to_vector_flt, lbfgs_torch, layer_krum, flare
+from utils.defense import  get_update, flame, crowdguard
 from utils.text_helper import TextHelper
 from models.Attacker import attacker
 import torch
@@ -257,8 +257,8 @@ if __name__ == '__main__':
             w_glob = FedAvg(w_locals)
         elif args.defence == 'flame':
             w_glob = flame(w_locals, w_updates, w_glob, args, debug=args.debug)
-        elif args.defence == '""" crowdguard """':
-            print("crowdguard")
+        elif args.defence == 'crowdguard':
+            crowdguard(w_locals, w_updates, w_glob, args, debug=args.debug)
         else:
             print("Wrong Defense Method")
             os._exit(0)

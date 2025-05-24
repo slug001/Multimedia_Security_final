@@ -705,3 +705,7 @@ def lbfgs_torch(args, S_k_list, Y_k_list, v):
     print('approx_prod.shape',approx_prod.shape)
 
     return approx_prod.T
+
+
+def crowdguard(local_model, update_params, global_model, args, debug=False):
+    print("##### CrowdGuard #####")
