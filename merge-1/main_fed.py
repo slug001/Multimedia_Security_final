@@ -179,12 +179,6 @@ if __name__ == '__main__':
 
     args.flare_benign_list=[]
     args.flare_malicious_list=[]
-    #if args.defence == 'fld':
-    #    old_update_list = []
-    #    weight_record = []
-    #    update_record = []
-    #    args.frac = 1
-    #    malicious_score = torch.zeros((1, 100))
 
     if math.isclose(args.malicious, 0):
         backdoor_begin_acc = 100
@@ -224,10 +218,6 @@ if __name__ == '__main__':
             w_updates = []
         m = max(int(args.frac * args.num_users), 1)  # number of clients in each round
         idxs_users = np.random.choice(range(args.num_users), m, replace=False)  # select the clients for a single round
-        #if args.defence == 'fld':
-        #    idxs_users = np.arange(args.num_users)
-        #    if iter == 350:  # decrease the lr in the specific round to improve Acc
-        #        args.lr *= 0.1
 
         if backdoor_begin_acc < val_acc_list[-1]:  # start attack only when Acc overtakes backdoor_begin_acc
             backdoor_begin_acc = 0
@@ -246,10 +236,6 @@ if __name__ == '__main__':
         for num_turn, idx in enumerate(idxs_users):
             if attack_number > 0:  # upload models for malicious clients
                 args.iter = iter
-                #if args.defence == 'fld':
-                #    args.old_update_list = old_update_list[0:int(args.malicious * m)]
-                #    m_idx = idx
-                #else:
                 m_idx = None
 
                 mal_weight, loss, args.attack_layers = attacker(malicious_list, attack_number, args.attack, dataset_train, dataset_test, dict_users, net_glob, args, idx = m_idx)
@@ -260,9 +246,6 @@ if __name__ == '__main__':
                     args=args, dataset=dataset_train, idxs=dict_users[idx])
                 w, loss = local.train(
                     net=copy.deepcopy(net_glob).to(args.device))
-            #if args.defence == 'fld':
-            #    w_updates.append(get_update2(w, w_glob)) # ignore num_batches_tracked, running_mean, running_var
-            #else:
             w_updates.append(get_update(w, w_glob))
             if args.all_clients:
                 w_locals[idx] = copy.deepcopy(w)
@@ -274,7 +257,7 @@ if __name__ == '__main__':
             w_glob = FedAvg(w_locals)
         elif args.defence == 'flame':
             w_glob = flame(w_locals, w_updates, w_glob, args, debug=args.debug)
-        elif args.defence == 'crowdguard':
+        elif args.defence == '""" crowdguard """':
             print("crowdguard")
         else:
             print("Wrong Defense Method")
