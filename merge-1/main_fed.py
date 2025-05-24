@@ -27,7 +27,10 @@ from utils.text_load import *
 
 matplotlib.use('Agg')
 
-
+"""
+作用： 將實驗過程中的主要任務準確率 (accu_list) 和後門任務成功率 (back_list) 以及實驗設定 (args) 寫入到指定的檔案 (filename) 中。
+analyse=True 時： 計算並寫入最後 10% 回合的最佳準確率 (max acc)、平均後門成功率 (ABSR) 和最佳後門成功率 (BBSR)。
+"""
 def write_file(filename, accu_list, back_list, args, analyse=False):
     write_info_to_accfile(filename, args)
     f = open(filename, "a")
@@ -72,6 +75,10 @@ def write_file(filename, accu_list, back_list, args, analyse=False):
     f.close()
 
 
+"""
+作用： 從給定的資料集 (dataset) 中隨機（IID）抽取指定數量 (dataset_size) 的樣本，用於構建一個中央伺服器可能擁有的（用於某些防禦如 FLTrust 的）小部分驗證資料集。
+注意： 目前只保留 FLAME 的設定下，這個函式可能不會被直接調用，因為 FLAME 的原始版本不依賴伺服器端的特定根資料集。
+"""
 def central_dataset_iid(dataset, dataset_size):
     all_idxs = [i for i in range(len(dataset))]
     central_dataset = set(np.random.choice(
@@ -79,6 +86,9 @@ def central_dataset_iid(dataset, dataset_size):
     return central_dataset
 
 
+"""
+作用： 檢查指定路徑 (path) 的資料夾是否存在，如果不存在則創建它。用於確保儲存結果的資料夾存在。
+"""
 def test_mkdir(path):
     if not os.path.isdir(path):
         #os.mkdir(path)
@@ -88,6 +98,7 @@ def test_mkdir(path):
 if __name__ == '__main__':
     # parse args
     args = args_parser()
+    # 將 lp_attack（可能是 Layer Poisoning Attack 的縮寫）映射到 adaptive 攻擊模式，表明您的 BC 層攻擊的核心是自適應的。
     if args.attack == 'lp_attack':
         args.attack = 'adaptive'  # adaptively control the number of attacking layers
     args.device = torch.device('cuda:{}'.format(
@@ -166,27 +177,29 @@ if __name__ == '__main__':
         net_glob = helper.local_model.to(args.device)
     else:
         exit('Error: unrecognized model')
-
+   
     
-        
+    # 將模型設置為訓練模式。
     net_glob.train()
 
-    # copy weights
+    # copy weights 獲取全域模型的初始權重。
     w_glob = net_glob.state_dict()
 
     # training
     loss_train = []
 
+    # 為 FLAME 防禦準備的列表，用於儲存距離/分數。
     args.flare_benign_list=[]
     args.flare_malicious_list=[]
 
+    # 設定一個準確率閾值 (0)，只有當模型的良性任務準確率超過這個閾值時，才開始執行後門攻擊。
     if math.isclose(args.malicious, 0):
         backdoor_begin_acc = 100
     else:
         backdoor_begin_acc = args.attack_begin  # overtake backdoor_begin_acc then attack
     central_dataset = central_dataset_iid(dataset_test, args.server_dataset)  # get root dataset for FLTrust
     base_info = get_base_info(args)
-    filename = './' + args.save + '/accuracy_file_{}.txt'.format(base_info)  # log hyperparameters
+    filename = './' + args.save + '/accuracy_file_{}.txt'.format(base_info)  # 生成用於記錄結果的檔案名。 log hyperparameters
 
     if args.init != 'None':  # continue from checkpoint
         param = torch.load(args.init)
@@ -196,10 +209,9 @@ if __name__ == '__main__':
     val_acc_list = [0.0001]  # Acc list
     backdoor_acculist = [0]  # BSR list
 
-    args.attack_layers = []  # keep LSA
+    args.attack_layers = []  # keep LSA  關鍵變數，用於儲存（並在多輪之間傳遞）LSA 識別出的後門關鍵層 (BC layers)。
 
-    #if args.attack == "dba":
-    #    args.dba_sign = 0  # control the index of group to attack
+
     if args.log_distance == True:
         args.krum_distance = []
         args.krum_layer_distance = []
