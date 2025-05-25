@@ -351,9 +351,11 @@ class CNN_MNIST(nn.Module):
         self.conv1 = nn.Conv2d(1, 32, kernel_size=(3,3))
         self.conv2 = nn.Conv2d(32, 64, kernel_size=(3,3))
         self.max_pool = nn.MaxPool2d(kernel_size=(2, 2))
-        self.drop1 = nn.Dropout2d(p=0.5)
+        #self.drop1 = nn.Dropout2d(p=0.5)
+        self.drop1 = nn.Dropout(p=0.5)
         self.fc1 = nn.Linear(9216, 128)
-        self.drop2 = nn.Dropout2d(p=0.5)
+        #self.drop2 = nn.Dropout2d(p=0.5)
+        self.drop2 = nn.Dropout(p=0.5)
         self.fc2 = nn.Linear(128, 10)
         
     def forward(self, x):
