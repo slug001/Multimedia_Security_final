@@ -62,6 +62,16 @@ class CrowdGuardClientValidation:
         """
         Calculates the distance matrix containing the metric for CrowdGuard
         with dimensions label x model x layer x values
+
+        計算 HLBIM (Hidden Layer Backdoor Inspection Metric) 矩陣。 
+        這是 CrowdGuard 的關鍵創新點。
+
+        輸入：
+            distance_type: 'cosine' 或 'euclid'。
+            prediction_matrix: 一個多維列表/張量，儲存了每個樣本在每個待驗證本地模型的每一層的隱藏層輸出 (DLOs)。維度大致是 [num_samples, num_local_models, num_layers, feature_dim_of_layer]。
+            prediction_global_model: 類似 prediction_matrix，但只包含全局模型的 DLOs。維度大致是 [num_samples, num_layers, feature_dim_of_layer]。
+            sample_indices_by_label: 一個字典，key 是數據標籤，value 是具有該標籤的樣本在驗證集中的索引列表。
+            own_index: 當前執行驗證的這個客戶端，其自己的模型在 prediction_matrix 的第二個維度（即本地模型列表）中的索引。
         """
 
         sample_count = len(prediction_matrix)
@@ -162,6 +172,16 @@ class CrowdGuardClientValidation:
         - A matrix with Deep Layer Outputs with dimensions sample x layer x values.
         - The labels for all samples in the client's training dataset
         - The number of layers defined in the model
+
+        用途： 使用給定的單個模型 (model) 在其本地驗證數據 (local_data) 上進行前向傳播，並提取所有預定義的隱藏層的輸出 (DLOs)。
+        輸入：
+            model: 一個 nn.Module 實例，且必須有 predict_internal_states 方法。
+            local_data: 通常是一個 DataLoader，提供驗證用的批次數據。
+            device: 'cuda' 或 'cpu'。
+        輸出：
+            predictions: 一個列表，每個元素對應一個樣本，該元素又是一個列表，包含該樣本在模型各層的 DLO 張量。
+            sample_label_list: 所有驗證樣本的真實標籤列表。
+            num_layers: 模型中被記錄的隱藏層的數量。
         """
         num_layers = None
         sample_label_list = []
@@ -212,6 +232,14 @@ class CrowdGuardClientValidation:
         - The Deep Layer Outputs of the global model int he dimension sample x layer x value
         - A dict containing lists of sample indices for each label class
         - The number of layers from the model
+
+        用途： 對傳入的所有本地模型列表 (models) 和全局模型 (global_model)，
+            分別調用 __predict_for_single_model 來獲取它們在 local_data 上的 DLOs。
+        輸出：
+            all_models_predictions: 所有本地模型的 DLOs。
+            global_model_predictions: 全局模型的 DLOs。
+            sample_indices_by_label: 樣本按標籤分類的索引。
+            n_layers: 層數。
         """
         all_models_predictions = []
         for model_index, model in enumerate(models):
@@ -238,6 +266,16 @@ class CrowdGuardClientValidation:
     @staticmethod
     def __prune_poisoned_models(num_layers, total_number_of_clients, own_client_index,
                                 distances_by_metric, verbose=False):
+        """
+        核心功能：執行迭代剪枝和統計檢驗來識別可疑模型（對應論文 Algorithm 2 和 Algorithm 4）。
+        輸入：
+            num_layers: 模型層數。
+            total_number_of_clients: 本輪參與的客戶端總數。
+            own_client_index: 當前驗證客戶端自己的模型在列表中的索引。
+            distances_by_metric: 一個字典，key 是距離類型 ('cosine', 'euclid')，value 是對應的 HLBIM 矩陣。
+            verbose: 是否打印詳細日誌。
+        
+        """
         detected_poisoned_models = []
         for distance_type in distances_by_metric.keys():
 
@@ -438,6 +476,16 @@ class CrowdGuardClientValidation:
 
     @staticmethod
     def validate_models(global_model, models, own_client_index, local_data, device):
+        """
+        用途：這是客戶端驗證的入口函式。
+        步驟：
+            調用 __do_predictions 獲取所有模型（本地和全局）在當前客戶端本地數據上的 DLOs。
+            對於每種距離度量（Cosine 和 Euclidean）：
+                a. 調用 __distance_global_model_final_metric 計算 HLBIM 矩陣。
+            調用 __prune_poisoned_models 根據計算出的 HLBIM 矩陣來識別可疑模型。
+        輸出： 
+            一個列表，包含被識別為可疑的本地模型的索引。
+        """
         tmp = CrowdGuardClientValidation.__do_predictions(models, global_model, local_data, device)
         prediction_matrix, global_model_predictions, sample_indices_by_label, num_layers = tmp
         distances_by_metric = {}
