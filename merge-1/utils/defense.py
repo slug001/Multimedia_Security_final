@@ -710,6 +710,41 @@ from torch.utils.data import DataLoader, Subset
 from sklearn.cluster import AgglomerativeClustering, DBSCAN
 from CrowdGuard.CrowdGuardClientValidation import CrowdGuardClientValidation
 
+def create_cluster_map_from_labels(expected_number_of_labels, clustering_labels):
+    """
+    Converts a list of labels into a dictionary where each label is the key and
+    the values are lists/np arrays of the indices from the samples that received
+    the respective label
+    :param expected_number_of_labels number of samples whose labels are contained in
+    clustering_labels
+    :param clustering_labels list containing the labels of each sample
+    :return dictionary of clusters
+    """
+    assert len(clustering_labels) == expected_number_of_labels
+
+    clusters = {}
+    for i, cluster in enumerate(clustering_labels):
+        if cluster not in clusters:
+            clusters[cluster] = []
+        clusters[cluster].append(i)
+    return {index: np.array(cluster) for index, cluster in clusters.items()}
+
+
+def determine_biggest_cluster(clustering):
+    """
+    Given a clustering, given as dictionary of the form {cluster_id: [items in cluster]}, the
+    function returns the id of the biggest cluster
+    """
+    biggest_cluster_id = None
+    biggest_cluster_size = None
+    for cluster_id, cluster in clustering.items():
+        size_of_current_cluster = np.array(cluster).shape[0]
+        if biggest_cluster_id is None or size_of_current_cluster > biggest_cluster_size:
+            biggest_cluster_id = cluster_id
+            biggest_cluster_size = size_of_current_cluster
+    return biggest_cluster_id
+
+# CrowdGuard defense using the utility functions
 def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_users, args, debug=False):
     if debug:
         print("[CrowdGuard] Running defense with debug info ON")
@@ -748,6 +783,7 @@ def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_use
         )
         if debug:
             print(f"[CrowdGuard] [Validator {j}] detected poisoned models: {poisoned}")
+        # Build vote row: 1 for benign (including self), 0 for poisoned
         for i in range(m):
             votes[j, i] = 1 if (i == j or i not in poisoned) else 0
         if debug:
@@ -757,41 +793,51 @@ def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_use
 
     # === 3) 堆疊式聚类 & 最終投票 ===
     # 3.1 Agglomerative → 選出 majority_validators
-    labels = AgglomerativeClustering(n_clusters=2, distance_threshold=None,
+    agg_labels = AgglomerativeClustering(n_clusters=2, distance_threshold=None,
                                        compute_full_tree=True,
                                        metric="euclidean", memory=None, connectivity=None,
                                        linkage='single',
                                        compute_distances=True).fit_predict(votes)
-    majority = np.bincount(labels).argmax()
-    val_idx = [j for j, lab in enumerate(labels) if lab == majority]
     if debug:
-        print(f"[CrowdGuard] Agglomerative labels: {labels}")
-        print(f"[CrowdGuard] Majority cluster index: {majority}, Validators kept: {val_idx}")
+        print(f"[CrowdGuard] Agglomerative labels: {agg_labels}")
+    agg_map = create_cluster_map_from_labels(m, agg_labels)
+    if debug:
+        print(f"[CrowdGuard] Agglomerative Clustering: {agg_map}")
+    major_label = determine_biggest_cluster(agg_map)
+    majority_validators = agg_map[major_label]
+    if debug:
+        print(f"[CrowdGuard] Majority cluster index: ?, Validators kept (after clustering) as DBScan Input: {majority_validators}")
 
     # 3.2 DBSCAN → 從 majority_validators 挑出最穩定的那一群
-    sub_votes = votes[val_idx]
-    core_labels = DBSCAN(eps=0.5, min_samples=1).fit_predict(sub_votes)
-    top = np.bincount(core_labels[core_labels>=0]).argmax()
-    mask = core_labels == top
-    core = sub_votes[mask]
-    final_votes = np.array([np.bincount(core[:,c]).argmax() for c in range(m)])
+    sub_votes = votes[majority_validators]
+    db_labels = DBSCAN(eps=0.5, min_samples=1).fit_predict(sub_votes)
+    if debug:
+        print(f"[CrowdGuard] DBSCAN core labels: {db_labels}")
+    db_map = create_cluster_map_from_labels(len(majority_validators), db_labels)
+    top_label = determine_biggest_cluster(db_map)
+    core_indices = db_map[top_label]
+    if debug:
+        print(f'[CrowdGuard] DBScan Clustering: {core_indices}')
+    core_votes = sub_votes[core_indices]
+
+    # Final per-model vote via majority within core
+    final_votes = np.array([np.bincount(core_votes[:, c]).argmax() for c in range(m)])
+    if debug:
+        print(f"[CrowdGuard] Final votes (0=poisoned, 1=benign): {final_votes}")
 
     # === 4) 過濾 & 回傳 ===
     kept = [i for i, v in enumerate(final_votes) if v==1]
     filtered_updates = [w_updates[i] for i in kept]
     if debug:
-        print(f"[CrowdGuard] DBSCAN core labels: {core_labels}")
-        print(f"[CrowdGuard] Final votes (0=poisoned, 1=benign): {final_votes}")
         print(f"[CrowdGuard] Kept indices: {kept}")
         pruned = [i for i in range(m) if i not in kept]
         print(f"[CrowdGuard] Pruned count: {len(pruned)}, Pruned indices: {pruned}")
-        print(f"[CrowdGuard] Validators kept (after clustering): {val_idx}")
     with open(f'./{args.save}/crowdguard_log.txt', 'a') as f:
         f.write("=== CrowdGuard Round Info ===\n")
         f.write(f"Vote matrix:\n{votes.tolist()}\n")
         f.write(f"Final kept indices: {kept}\n")
         pruned = [i for i in range(m) if i not in kept]
         f.write(f"Pruned count: {len(pruned)}, Pruned indices: {pruned}\n")
-        f.write(f"Validators kept: {val_idx}\n\n")
+        f.write(f"Validators kept: {majority_validators}\n\n")
 
     return filtered_updates, kept
