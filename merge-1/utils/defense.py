@@ -708,9 +708,6 @@ def lbfgs_torch(args, S_k_list, Y_k_list, v):
 
 from torch.utils.data import DataLoader, Subset
 from sklearn.cluster import AgglomerativeClustering, DBSCAN
-import os, sys
-# 將上兩層目錄加入模組搜尋路徑
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 from CrowdGuard.CrowdGuardClientValidation import CrowdGuardClientValidation
 
 def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_users, args, debug=False):
