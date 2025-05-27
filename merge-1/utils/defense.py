@@ -744,20 +744,17 @@ def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_use
 
     # === 3) 堆疊式聚类 & 最終投票 ===
     # 3.1 Agglomerative → 選出 majority_validators
-    labels = AgglomerativeClustering(n_clusters=2).fit_predict(votes)
+    labels = AgglomerativeClustering(n_clusters=2, linkage='single', metric='euclidean').fit_predict(votes)
     majority = np.bincount(labels).argmax()
     val_idx = [j for j, lab in enumerate(labels) if lab == majority]
 
     # 3.2 DBSCAN → 從 majority_validators 挑出最穩定的那一群
     sub_votes = votes[val_idx]
     core_labels = DBSCAN(eps=0.5, min_samples=1).fit_predict(sub_votes)
-    if (core_labels < 0).all():
-        final_votes = (votes.sum(axis=0) > m/2).astype(int)
-    else:
-        top = np.bincount(core_labels[core_labels>=0]).argmax()
-        mask = core_labels == top
-        core = sub_votes[mask]
-        final_votes = np.array([np.bincount(core[:,c]).argmax() for c in range(m)])
+    top = np.bincount(core_labels[core_labels>=0]).argmax()
+    mask = core_labels == top
+    core = sub_votes[mask]
+    final_votes = np.array([np.bincount(core[:,c]).argmax() for c in range(m)])
 
     # === 4) 過濾 & 回傳 ===
     kept = [i for i, v in enumerate(final_votes) if v==1]

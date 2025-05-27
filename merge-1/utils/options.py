@@ -63,9 +63,7 @@ def args_parser():
     parser.add_argument('--iid', type=int, default=1,
                         help='whether i.i.d or not')
     
-    # === CrowdGuard arguments ===
-    parser.add_argument('--device', type=str, default='cuda',
-                        help="device used for CrowdGuard: 'cuda' or 'cpu'")
+
 
  #************************atttack_label********************************#
     parser.add_argument('--attack_label', type=int, default=5,

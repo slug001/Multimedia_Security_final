@@ -275,17 +275,21 @@ if __name__ == '__main__':
         elif args.defence == 'flame':
             w_glob = flame(w_locals, w_updates, w_glob, args, debug=args.debug)
         elif args.defence == 'crowdguard':
-            global_model_copy = copy.deepcopy(net_glob).to(args.device)
-            # 傳入 idxs_users 讓 crowdguard 能對應每個 local_pos 到真實用戶
-            w_updates, kept_indices = crowdguard(
-                w_updates,
-                global_model_copy,
-                dataset_train,
-                dict_users,
-                idxs_users,
-                args,
-                debug=args.debug
-            )
+            if iter == 0:
+                # t = 0 時直接放行所有更新
+                kept_indices = list(range(len(w_updates)))
+            else:
+                global_model_copy = copy.deepcopy(net_glob).to(args.device)
+                # 傳入 idxs_users 讓 crowdguard 能對應每個 local_pos 到真實用戶
+                w_updates, kept_indices = crowdguard(
+                    w_updates,
+                    global_model_copy,
+                    dataset_train,
+                    dict_users,
+                    idxs_users,
+                    args,
+                    debug=args.debug
+                )
             # 先把 kept_indices 上的更新“还原”成完整模型 state_dict
             kept_state_dicts = []
             for i in kept_indices:
