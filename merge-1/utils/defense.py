@@ -740,6 +740,15 @@ def crowdguard(local_model, update_params, global_model, args,dataset_test, debu
         batch_size=min(num_samples, args.bs), # 批次大小可以是觀察的樣本數或更小
         shuffle=False
     )
-    
+    data_batch, _ = next(iter(dataloader))
+    data_batch = data_batch.to(device)
+    # 這需要您根據 ResNet18 中 all_selected_internal_states 的實現來確定
+    # 假設：conv1(0), bn1(1), relu(.), layer1(2), layer2(3), layer3(4), layer4(5), avgpool(6), linear(7)
+    idx_layer3_output = 4
+    idx_layer4_output = 5
+    print(f"  DLOs for Global Model (from previous round):")
+    global_dlo_list = global_model_instance.all_selected_internal_states(data_batch)
+    print(f"    Global Model - Layer 3 output (index {idx_layer3_output}) shape: {global_dlo_list[idx_layer3_output].shape}")
+    print(f"    Global Model - Layer 4 output (index {idx_layer4_output}) shape: {global_dlo_list[idx_layer4_output].shape}")
 
     print("##### CrowdGuard  end #####")
