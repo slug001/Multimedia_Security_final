@@ -433,11 +433,28 @@ class CrowdGuardClientValidation:
         return list(set(detected_poisoned_models))
 
     @staticmethod
-    def validate_models(global_model, models, own_client_index, local_data, device):
+    def validate_models(global_model, models, own_client_index, local_data, device, debug=False):
+        if debug:
+            print(f"\n[CrowdGuard] ===== Client {own_client_index} Start Validation =====")
+
+        # Step 1: 預測模型層輸出
+        if debug:
+            print("[CrowdGuard] Performing internal state prediction...")
         tmp = CrowdGuardClientValidation.__do_predictions(models, global_model, local_data, device)
         prediction_matrix, global_model_predictions, sample_indices_by_label, num_layers = tmp
+        if debug:
+            print(f"[CrowdGuard] Internal state prediction complete.")
+            print(f"[CrowdGuard] Total samples: {len(prediction_matrix)}")
+            print(f"[CrowdGuard] Total models validated: {len(models)}")
+            print(f"[CrowdGuard] Total layers in model: {num_layers}")
+            print(f"[CrowdGuard] Labels found in dataset: {list(sample_indices_by_label.keys())}")
+
         distances_by_metric = {}
+
+        # Step 2: 計算每種距離指標的 HLBIM
         for dist_type in [DistanceMetric.COSINE, DistanceMetric.EUCLIDEAN]:
+            if debug:
+                print(f"[CrowdGuard] Calculating HLBIM distances using {dist_type} distance...")
             calculated_distances = CrowdGuardClientValidation.__distance_global_model_final_metric(
                 dist_type,
                 prediction_matrix,
@@ -445,7 +462,16 @@ class CrowdGuardClientValidation:
                 sample_indices_by_label,
                 own_client_index)
             distances_by_metric[dist_type] = calculated_distances
+            if debug:
+                print(f"[CrowdGuard] Finished calculating distances for {dist_type}.")
+
+        # Step 3: 使用 PCA + clustering + outlier detection 進行 pruning
+        if debug:
+            print("[CrowdGuard] Pruning suspected poisoned models via statistical + clustering analysis...")
         result = CrowdGuardClientValidation.__prune_poisoned_models(num_layers, len(models),
                                                                     own_client_index,
-                                                                    distances_by_metric)
+                                                                    distances_by_metric, verbose=True)
+        if debug:
+            print(f"[CrowdGuard] Client {own_client_index} detected {len(result)} poisoned models: {result}")
+            print(f"[CrowdGuard] ===== Client {own_client_index} Validation Finished =====\n")
         return result

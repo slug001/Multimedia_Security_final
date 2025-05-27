@@ -25,6 +25,7 @@ def write_info(args, info):
 def information(args):
     info = []
     info.append('======================================')
+    info.append(f'    Device: {args.device}')
     info.append(f'    IID: {args.iid}')
     info.append(f'    Dataset: {args.dataset}')
     info.append(f'    Model: {args.model}')

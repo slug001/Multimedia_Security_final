@@ -779,7 +779,8 @@ def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_use
             models=models,
             own_client_index=j,
             local_data=loaders[j],
-            device=args.device
+            device=args.device,
+            debug=debug
         )
         if debug:
             print(f"[CrowdGuard] [Validator {j}] detected poisoned models: {poisoned}")
