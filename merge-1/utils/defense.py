@@ -750,7 +750,6 @@ def print_vote_matrix(votes, malicious_list):
     for i in range(m):
         row = votes[i]
         print(f"Validator {i}: {row.tolist()}")
-    print_vote_matrix(votes, args.malicious_list)
 
     print("\n[CrowdGuard] Client summary:")
     for client_id in range(m):
