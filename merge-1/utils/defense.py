@@ -744,8 +744,25 @@ def determine_biggest_cluster(clustering):
             biggest_cluster_size = size_of_current_cluster
     return biggest_cluster_id
 
+def print_vote_matrix(votes, malicious_list):
+    print("\n[CrowdGuard] === Vote Matrix Summary ===")
+    m = votes.shape[0]
+    for i in range(m):
+        row = votes[i]
+        print(f"Validator {i}: {row.tolist()}")
+    print_vote_matrix(votes, args.malicious_list)
+
+    print("\n[CrowdGuard] Client summary:")
+    for client_id in range(m):
+        true_type = "MALICIOUS" if client_id in malicious_list else "BENIGN"
+        vote_col = votes[:, client_id]
+        num_votes = int(vote_col.sum())
+        print(f"Client {client_id:2d}: True={true_type:9s} | Votes for benign = {num_votes}/{m}")
+
+    print("[CrowdGuard] ============================\n")
+
 # CrowdGuard defense using the utility functions
-def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_users, args, debug=False):
+def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_users, malicious_list, args, debug=False):
     if debug:
         print("[CrowdGuard] Running defense with debug info ON")
     m = len(w_updates)
@@ -791,6 +808,7 @@ def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_use
             print("[CrowdGuard] Validator voting pattern matrix:")
             for i, row in enumerate(votes):
                 print(f"Validator {i}: {row}")
+            print_vote_matrix(votes, args.malicious_list)
 
     # === 3) 堆疊式聚类 & 最終投票 ===
     # 3.1 Agglomerative → 選出 majority_validators

@@ -291,6 +291,7 @@ if __name__ == '__main__':
                     dataset_train,
                     dict_users,
                     idxs_users,
+                    malicious_list,
                     args,
                     debug=args.debug
                 )
