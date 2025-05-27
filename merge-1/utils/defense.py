@@ -710,12 +710,6 @@ from torch.utils.data import DataLoader, Subset
 from sklearn.cluster import AgglomerativeClustering, DBSCAN
 from CrowdGuard.CrowdGuardClientValidation import CrowdGuardClientValidation
 def crowdguard(w_locals, w_updates, w_glob, args, dataset_train, dict_users, debug=False):
-    """
-    完整的 CrowdGuard 流程，已接入 args.crowdguard_k & args.crowdguard_distance：
-       • 第一层聚类簇数由 args.crowdguard_k 决定
-       • HLBIM 距离计算仅使用 args.crowdguard_distance
-    """
-
     num_clients = len(w_locals)
 
     # === 1) 重建模型 & DataLoader ===
@@ -737,27 +731,25 @@ def crowdguard(w_locals, w_updates, w_glob, args, dataset_train, dict_users, deb
     # === 2) HLBIM 分析 & 投票 ===
     votes = np.zeros((num_clients, num_clients), dtype=int)
     for j in range(num_clients):
-        if debug:
-            print(f"[CrowdGuard] Validator #{j} using distance={args.crowdguard_distance}")
-        # 只用一个距离度量
         poisoned_idxs = CrowdGuardClientValidation.validate_models(
             global_model=copy.deepcopy(w_glob).to(args.device),
             models=models,
             own_client_index=j,
             local_data=loaders[j],
-            device=args.device,
-            # 假设你在 validate_models 里加入了 distance 参数支持：
-            distance=args.crowdguard_distance
+            device=args.device
         )
         for i in range(num_clients):
-            votes[j, i] = 0 if i in poisoned_idxs else 1
+            if i == j:
+                votes[j,i] = 1
+            else:
+                votes[j,i] = 0 if i in poisoned_idxs else 1
 
     if debug:
         print("All votes matrix:")
         print(votes)
 
-    # === 3.1) 第一层堆叠式聚类：Agglomerative with args.crowdguard_k ===
-    ac = AgglomerativeClustering(n_clusters=args.crowdguard_k)
+    # === 3.1) 第一层堆叠式聚类：Agglomerative ===
+    ac = AgglomerativeClustering(n_clusters=2)
     labels = ac.fit_predict(votes)
     counts = np.bincount(labels)
     majority_label = np.argmax(counts)
@@ -768,8 +760,7 @@ def crowdguard(w_locals, w_updates, w_glob, args, dataset_train, dict_users, deb
 
     # === 3.2) 第二层：DBSCAN on majority_validators' votes ===
     sub_votes = votes[majority_validators]
-    db = DBSCAN(eps=args.crowdguard_beta,
-                min_samples=max(1, len(majority_validators)//2))
+    db = DBSCAN(eps=0.5, min_samples=1)
     core_labels = db.fit_predict(sub_votes)
     valid_labels = core_labels[core_labels >= 0]
 

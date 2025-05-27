@@ -64,12 +64,6 @@ def args_parser():
                         help='whether i.i.d or not')
     
     # === CrowdGuard arguments ===
-    parser.add_argument('--crowdguard_beta', type=float, default=0.1,
-                        help="similarity threshold beta for CrowdGuard")
-    parser.add_argument('--crowdguard_k', type=int, default=5,
-                        help="number of clusters for CrowdGuard")
-    parser.add_argument('--crowdguard_distance', type=str, default='cosine',
-                        help="distance metric used in CrowdGuard: 'cosine' or 'euclidean'")
     parser.add_argument('--device', type=str, default='cuda',
                         help="device used for CrowdGuard: 'cuda' or 'cpu'")
 
