@@ -709,7 +709,10 @@ def lbfgs_torch(args, S_k_list, Y_k_list, v):
 from torch.utils.data import DataLoader, Subset
 from sklearn.cluster import AgglomerativeClustering, DBSCAN
 from CrowdGuard.CrowdGuardClientValidation import CrowdGuardClientValidation
+
 def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_users, args, debug=False):
+    if debug:
+        print("[CrowdGuard] Running defense with debug info ON")
     m = len(w_updates)
 
     # === 1) 重建模型 & DataLoader ===
@@ -732,6 +735,8 @@ def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_use
     votes = np.zeros((m, m), dtype=int)
     global_model=copy.deepcopy(global_model_copy).to(args.device)
     for j in range(m):
+        if debug:
+            print(f"[CrowdGuard] [Validator {j}] start validating against global model")
         poisoned = CrowdGuardClientValidation.validate_models(
             global_model=global_model,
             models=models,
@@ -739,14 +744,23 @@ def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_use
             local_data=loaders[j],
             device=args.device
         )
+        if debug:
+            print(f"[CrowdGuard] [Validator {j}] detected poisoned models: {poisoned}")
         for i in range(m):
             votes[j, i] = 1 if (i == j or i not in poisoned) else 0
+        if debug:
+            print("[CrowdGuard] Vote matrix:")
+            for row in votes:
+                print(row)
 
     # === 3) 堆疊式聚类 & 最終投票 ===
     # 3.1 Agglomerative → 選出 majority_validators
     labels = AgglomerativeClustering(n_clusters=2, linkage='single', metric='euclidean').fit_predict(votes)
     majority = np.bincount(labels).argmax()
     val_idx = [j for j, lab in enumerate(labels) if lab == majority]
+    if debug:
+        print(f"[CrowdGuard] Agglomerative labels: {labels}")
+        print(f"[CrowdGuard] Majority cluster index: {majority}, Validators kept: {val_idx}")
 
     # 3.2 DBSCAN → 從 majority_validators 挑出最穩定的那一群
     sub_votes = votes[val_idx]
@@ -759,4 +773,13 @@ def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_use
     # === 4) 過濾 & 回傳 ===
     kept = [i for i, v in enumerate(final_votes) if v==1]
     filtered_updates = [w_updates[i] for i in kept]
+    if debug:
+        print(f"[CrowdGuard] DBSCAN core labels: {core_labels}")
+        print(f"[CrowdGuard] Final votes (0=poisoned, 1=benign): {final_votes}")
+        print(f"[CrowdGuard] Kept indices: {kept}")
+        with open('./'+args.save+'/crowdguard_log.txt', 'a') as f:
+            f.write(f"Round info...\n")
+            f.write(f"Vote matrix:\n{votes.tolist()}\n")
+            f.write(f"Final kept: {kept}\n\n")
+
     return filtered_updates, kept
