@@ -7,7 +7,7 @@ sys.path.append('../')
 
 from random import random
 from models.test import test_img
-from models.Nets import ResNet18, vgg19_bn, vgg19, get_model
+from models.Nets import ResNet18, vgg19_bn, vgg19, get_model, ResNet18WithInternals
 from torch.utils.data import DataLoader, Dataset
 from utils.options import args_parser
 
@@ -124,6 +124,8 @@ def layer_analysis_no_acc(model_param, args, mal_train_dataset, mal_val_dataset,
         model = vgg19_bn().to(args.device)
     elif args.model == 'rlr_mnist':
         model = get_model('fmnist').to(args.device)
+    elif args.model == 'resnetwithinternals':
+        model = ResNet18WithInternals().to(args.device)
     param1 = model_param
     model.load_state_dict(param1)
 
@@ -287,6 +289,8 @@ def get_key_value_bsr(model_param, args, mal_train_dataset, mal_val_dataset):
         model = vgg19_bn().to(args.device)
     elif args.model == 'rlr_mnist' or args.model == 'cnn':
         model = get_model('fmnist').to(args.device)
+    elif args.model == 'resnetwithinternals':
+        model = ResNet18WithInternals().to(args.device)
     param1 = model_param
     model.load_state_dict(param1)
 
