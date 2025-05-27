@@ -788,9 +788,9 @@ def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_use
         for i in range(m):
             votes[j, i] = 1 if (i == j or i not in poisoned) else 0
         if debug:
-            print("[CrowdGuard] Vote matrix:")
-            for row in votes:
-                print(row)
+            print("[CrowdGuard] Validator voting pattern matrix:")
+            for i, row in enumerate(votes):
+                print(f"Validator {i}: {row}")
 
     # === 3) 堆疊式聚类 & 最終投票 ===
     # 3.1 Agglomerative → 選出 majority_validators
@@ -807,7 +807,7 @@ def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_use
     major_label = determine_biggest_cluster(agg_map)
     majority_validators = agg_map[major_label]
     if debug:
-        print(f"[CrowdGuard] Majority cluster index: ?, Validators kept (after clustering) as DBScan Input: {majority_validators}")
+        print(f"[CrowdGuard] Validators kept (after clustering) as DBScan Input: {majority_validators}")
 
     # 3.2 DBSCAN → 從 majority_validators 挑出最穩定的那一群
     sub_votes = votes[majority_validators]
