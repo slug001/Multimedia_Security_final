@@ -744,11 +744,32 @@ def crowdguard(local_model, update_params, global_model, args,dataset_test, debu
     data_batch = data_batch.to(device)
     # 這需要您根據 ResNet18 中 all_selected_internal_states 的實現來確定
     # 假設：conv1(0), bn1(1), relu(.), layer1(2), layer2(3), layer3(4), layer4(5), avgpool(6), linear(7)
+    idx_layer1_output = 2
+    idx_layer2_output = 3
     idx_layer3_output = 4
     idx_layer4_output = 5
-    print(f"  DLOs for Global Model (from previous round):")
-    global_dlo_list = global_model_instance.all_selected_internal_states(data_batch)
-    print(f"    Global Model - Layer 3 output (index {idx_layer3_output}) shape: {global_dlo_list[idx_layer3_output].shape}")
-    print(f"    Global Model - Layer 4 output (index {idx_layer4_output}) shape: {global_dlo_list[idx_layer4_output].shape}")
+    idx_avgpool_output = 6
+    idx_linear_output = 7
+    need_print = True
+    if need_print:
+        print(f"  DLOs for Global Model (from previous round):")
+        global_dlo_list = global_model_instance.all_selected_internal_states(data_batch)
+        print(f"    Global Model - Layer 1 output (index {idx_layer1_output}) shape: {global_dlo_list[idx_layer1_output].shape}")
+        print(f"    Global Model - Layer 2 output (index {idx_layer2_output}) shape: {global_dlo_list[idx_layer2_output].shape}")
+        print(f"    Global Model - Layer 3 output (index {idx_layer3_output}) shape: {global_dlo_list[idx_layer3_output].shape}")
+        print(f"    Global Model - Layer 4 output (index {idx_layer4_output}) shape: {global_dlo_list[idx_layer4_output].shape}")
+        print(f"    Global Model - avgpool output (index {idx_avgpool_output}) shape: {global_dlo_list[idx_avgpool_output].shape}")
+        print(f"    Global Model - linear  output (index {idx_linear_output}) shape: {global_dlo_list[idx_linear_output].shape}")
+    if need_print:
+        # 打印每個本地模型的 DLOs
+        for model_idx, local_model_inst in enumerate(local_model_instances):
+            print(f"  DLOs for Local Model (Index in list: {model_idx}):")
+            local_dlo_list = local_model_inst.all_selected_internal_states(data_batch)
+            print(f"    Local Model - Layer 1 output (index {idx_layer1_output}) shape: {local_dlo_list[idx_layer1_output].shape}")
+            print(f"    Local Model - Layer 2 output (index {idx_layer2_output}) shape: {local_dlo_list[idx_layer2_output].shape}")
+            print(f"    Local Model - Layer 3 output (index {idx_layer3_output}) shape: {local_dlo_list[idx_layer3_output].shape}")
+            print(f"    Local Model - Layer 4 output (index {idx_layer4_output}) shape: {local_dlo_list[idx_layer4_output].shape}")
+            print(f"    Local Model - avgpool output (index {idx_avgpool_output}) shape: {local_dlo_list[idx_avgpool_output].shape}")
+            print(f"    Local Model - linear  output (index {idx_linear_output}) shape: {local_dlo_list[idx_linear_output].shape}")
 
     print("##### CrowdGuard  end #####")
