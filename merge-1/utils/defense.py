@@ -709,80 +709,57 @@ def lbfgs_torch(args, S_k_list, Y_k_list, v):
 from torch.utils.data import DataLoader, Subset
 from sklearn.cluster import AgglomerativeClustering, DBSCAN
 from CrowdGuard.CrowdGuardClientValidation import CrowdGuardClientValidation
-def crowdguard(w_locals, w_updates, w_glob, args, dataset_train, dict_users, debug=False):
-    num_clients = len(w_locals)
+def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_users, args, debug=False):
+    m = len(w_updates)
 
     # === 1) 重建模型 & DataLoader ===
-    models = []
-    loaders = []
-    for i, delta in enumerate(w_updates):
+    models, loaders = [], []
+    for local_pos, delta in enumerate(w_updates):
+        real_uid = idxs_users[local_pos]
         # Li = Gt + Δi
-        m = copy.deepcopy(w_glob).to(args.device)
-        sd = m.state_dict()
+        model = copy.deepcopy(global_model_copy).to(args.device)
+        sd = model.state_dict()
         for k in sd:
             sd[k] = sd[k] + delta[k].to(args.device)
-        m.load_state_dict(sd)
-        models.append(m)
+        model.load_state_dict(sd)
+        models.append(model)
 
-        # Di
-        subset = Subset(dataset_train, dict_users[i])
+        # Di：用 real_uid 取子集
+        subset = Subset(dataset_train, dict_users[real_uid])
         loaders.append(DataLoader(subset, batch_size=args.local_bs, shuffle=False))
 
     # === 2) HLBIM 分析 & 投票 ===
-    votes = np.zeros((num_clients, num_clients), dtype=int)
-    for j in range(num_clients):
-        poisoned_idxs = CrowdGuardClientValidation.validate_models(
-            global_model=copy.deepcopy(w_glob).to(args.device),
+    votes = np.zeros((m, m), dtype=int)
+    global_model=copy.deepcopy(global_model_copy).to(args.device)
+    for j in range(m):
+        poisoned = CrowdGuardClientValidation.validate_models(
+            global_model=global_model,
             models=models,
             own_client_index=j,
             local_data=loaders[j],
             device=args.device
         )
-        for i in range(num_clients):
-            if i == j:
-                votes[j,i] = 1
-            else:
-                votes[j,i] = 0 if i in poisoned_idxs else 1
+        for i in range(m):
+            votes[j, i] = 1 if (i == j or i not in poisoned) else 0
 
-    if debug:
-        print("All votes matrix:")
-        print(votes)
+    # === 3) 堆疊式聚类 & 最終投票 ===
+    # 3.1 Agglomerative → 選出 majority_validators
+    labels = AgglomerativeClustering(n_clusters=2).fit_predict(votes)
+    majority = np.bincount(labels).argmax()
+    val_idx = [j for j, lab in enumerate(labels) if lab == majority]
 
-    # === 3.1) 第一层堆叠式聚类：Agglomerative ===
-    ac = AgglomerativeClustering(n_clusters=2)
-    labels = ac.fit_predict(votes)
-    counts = np.bincount(labels)
-    majority_label = np.argmax(counts)
-    majority_validators = [j for j in range(num_clients) if labels[j] == majority_label]
-
-    if debug:
-        print("Majority validators:", majority_validators)
-
-    # === 3.2) 第二层：DBSCAN on majority_validators' votes ===
-    sub_votes = votes[majority_validators]
-    db = DBSCAN(eps=0.5, min_samples=1)
-    core_labels = db.fit_predict(sub_votes)
-    valid_labels = core_labels[core_labels >= 0]
-
-    if len(valid_labels) == 0:
-        final_votes = (votes.sum(axis=0) > (num_clients/2)).astype(int)
+    # 3.2 DBSCAN → 從 majority_validators 挑出最穩定的那一群
+    sub_votes = votes[val_idx]
+    core_labels = DBSCAN(eps=0.5, min_samples=1).fit_predict(sub_votes)
+    if (core_labels < 0).all():
+        final_votes = (votes.sum(axis=0) > m/2).astype(int)
     else:
-        lab_counts = np.bincount(valid_labels)
-        top_lab = np.argmax(lab_counts)
-        mask = (core_labels == top_lab)
-        core_votes = sub_votes[mask]
-        final_votes = np.array([
-            int(np.bincount(core_votes[:, col]).argmax())
-            for col in range(num_clients)
-        ], dtype=int)
+        top = np.bincount(core_labels[core_labels>=0]).argmax()
+        mask = core_labels == top
+        core = sub_votes[mask]
+        final_votes = np.array([np.bincount(core[:,c]).argmax() for c in range(m)])
 
-    if debug:
-        print("Final aggregated votes:", final_votes)
-
-    # === 4) 过滤 & 聚合 ===
-    kept_indices = [i for i, v in enumerate(final_votes) if v == 1]
-    filtered_updates = [w_updates[i] for i in kept_indices]
-    if debug:
-        print("Clients kept:", kept_indices)
-
-    return filtered_updates, kept_indices
+    # === 4) 過濾 & 回傳 ===
+    kept = [i for i, v in enumerate(final_votes) if v==1]
+    filtered_updates = [w_updates[i] for i in kept]
+    return filtered_updates, kept
