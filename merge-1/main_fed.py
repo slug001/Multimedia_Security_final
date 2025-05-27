@@ -4,7 +4,7 @@
 
 from models.test import test_img
 from models.Fed import FedAvg
-from models.Nets import ResNet18, vgg19_bn, vgg19, get_model, vgg11
+from models.Nets import ResNet18, vgg19_bn, vgg19, get_model, vgg11, ResNet18WithInternals
 from models.resnet20 import resnet20
 from models.Update import LocalUpdate
 from utils.info import print_exp_details, write_info_to_accfile, get_base_info
@@ -175,6 +175,8 @@ if __name__ == '__main__':
     elif args.model == 'lstm':
         helper.create_model()
         net_glob = helper.local_model.to(args.device)
+    elif args.model == "resnetwithinternals" and args.dataset == 'cifar':
+        net_glob = ResNet18WithInternals().to(args.device)
     else:
         exit('Error: unrecognized model')
    
