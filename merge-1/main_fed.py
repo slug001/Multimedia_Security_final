@@ -328,6 +328,11 @@ if __name__ == '__main__':
 
             backdoor_acculist.append(back_acc)
             write_file(filename, val_acc_list, backdoor_acculist, args)
+        
+        # 每輪結束後釋放中間變數
+        import gc
+        torch.cuda.empty_cache()
+        gc.collect()
 
     best_acc, absr, bbsr = write_file(filename, val_acc_list, backdoor_acculist, args, True)
 

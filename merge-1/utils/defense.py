@@ -857,5 +857,14 @@ def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_use
         pruned = [i for i in range(m) if i not in kept]
         f.write(f"Pruned count: {len(pruned)}, Pruned indices: {pruned}\n")
         f.write(f"Validators kept: {majority_validators}\n\n")
-
+    
+    import gc
+    import torch
+    # 清空 GPU 快取
+    torch.cuda.empty_cache()
+    # 釋放模型和 loader 資源
+    del models
+    del loaders
+    del global_model
+    gc.collect()
     return filtered_updates, kept
