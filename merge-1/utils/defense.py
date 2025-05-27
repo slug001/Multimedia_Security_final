@@ -808,7 +808,7 @@ def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_use
             print("[CrowdGuard] Validator voting pattern matrix:")
             for i, row in enumerate(votes):
                 print(f"Validator {i}: {row}")
-            print_vote_matrix(votes, args.malicious_list)
+            print_vote_matrix(votes, malicious_list)
 
     # === 3) 堆疊式聚类 & 最終投票 ===
     # 3.1 Agglomerative → 選出 majority_validators
