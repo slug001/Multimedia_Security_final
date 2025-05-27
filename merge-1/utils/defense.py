@@ -725,10 +725,12 @@ def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_use
         for k in sd:
             sd[k] = sd[k] + delta[k].to(args.device)
         model.load_state_dict(sd)
+        model.eval()
         models.append(model)
 
         # Di：用 real_uid 取子集
-        subset = Subset(dataset_train, dict_users[real_uid])
+        indices = sorted(list(dict_users[real_uid]))
+        subset = Subset(dataset_train, indices)
         loaders.append(DataLoader(subset, batch_size=args.local_bs, shuffle=False))
 
     # === 2) HLBIM 分析 & 投票 ===
@@ -755,7 +757,11 @@ def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_use
 
     # === 3) 堆疊式聚类 & 最終投票 ===
     # 3.1 Agglomerative → 選出 majority_validators
-    labels = AgglomerativeClustering(n_clusters=2, linkage='single', metric='euclidean').fit_predict(votes)
+    labels = AgglomerativeClustering(n_clusters=2, distance_threshold=None,
+                                       compute_full_tree=True,
+                                       metric="euclidean", memory=None, connectivity=None,
+                                       linkage='single',
+                                       compute_distances=True).fit_predict(votes)
     majority = np.bincount(labels).argmax()
     val_idx = [j for j, lab in enumerate(labels) if lab == majority]
     if debug:
@@ -777,9 +783,15 @@ def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_use
         print(f"[CrowdGuard] DBSCAN core labels: {core_labels}")
         print(f"[CrowdGuard] Final votes (0=poisoned, 1=benign): {final_votes}")
         print(f"[CrowdGuard] Kept indices: {kept}")
-        with open('./'+args.save+'/crowdguard_log.txt', 'a') as f:
-            f.write(f"Round info...\n")
-            f.write(f"Vote matrix:\n{votes.tolist()}\n")
-            f.write(f"Final kept: {kept}\n\n")
+        pruned = [i for i in range(m) if i not in kept]
+        print(f"[CrowdGuard] Pruned count: {len(pruned)}, Pruned indices: {pruned}")
+        print(f"[CrowdGuard] Validators kept (after clustering): {val_idx}")
+    with open(f'./{args.save}/crowdguard_log.txt', 'a') as f:
+        f.write("=== CrowdGuard Round Info ===\n")
+        f.write(f"Vote matrix:\n{votes.tolist()}\n")
+        f.write(f"Final kept indices: {kept}\n")
+        pruned = [i for i in range(m) if i not in kept]
+        f.write(f"Pruned count: {len(pruned)}, Pruned indices: {pruned}\n")
+        f.write(f"Validators kept: {val_idx}\n\n")
 
     return filtered_updates, kept
