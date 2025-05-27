@@ -1,5 +1,8 @@
 # -*- coding = utf-8 -*-
+import torch
 from models.Nets import ResNet18
+from models.Update import DatasetSplit # 假設 DatasetSplit 可以這樣用
+from torch.utils.data import DataLoader, Subset
 
 import numpy as np
 import torch
@@ -709,7 +712,7 @@ def lbfgs_torch(args, S_k_list, Y_k_list, v):
     return approx_prod.T
 
 
-def crowdguard(local_model, update_params, global_model, args,dataset_test, debug=False,num_samples_to_observe=5):
+def crowdguard(local_model, update_params, global_model, args,dataset_test, debug=False,num_samples=5):
     print("##### CrowdGuard #####")
     device = args.device
     ModelToUse = ResNet18
@@ -728,6 +731,15 @@ def crowdguard(local_model, update_params, global_model, args,dataset_test, debu
         local_model_instances.append(temp_model)
     
     print(f"\n--- CrowdGuard: Preparing data from dataset_test")
-    print(f"dataset_test size"+ len(dataset_test))
+    print(f"dataset_test size: {len(dataset_test)}")
+    subset_indices = list(range(num_samples))
+    test_subset =DatasetSplit(dataset_test,subset_indices)
+
+    dataloader = DataLoader(
+        test_subset,
+        batch_size=min(num_samples, args.bs), # 批次大小可以是觀察的樣本數或更小
+        shuffle=False
+    )
+    
 
     print("##### CrowdGuard  end #####")
