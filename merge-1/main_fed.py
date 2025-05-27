@@ -192,12 +192,6 @@ if __name__ == '__main__':
     args.flare_benign_list=[]
     args.flare_malicious_list=[]
 
-    # === 傳遞給 CrowdGuard 所需的參數 ===
-    # dataset_train：完整訓練集
-    # dict_users：每個 client 的 sample 索引映射
-    args.dataset_train = dataset_train
-    args.dict_users     = dict_users
-
     # 設定一個準確率閾值 (0)，只有當模型的良性任務準確率超過這個閾值時，才開始執行後門攻擊。
     if math.isclose(args.malicious, 0):
         backdoor_begin_acc = 100
@@ -281,8 +275,16 @@ if __name__ == '__main__':
         elif args.defence == 'flame':
             w_glob = flame(w_locals, w_updates, w_glob, args, debug=args.debug)
         elif args.defence == 'crowdguard':
-            w_updates, kept_indices = crowdguard(w_locals, w_updates, net_glob, args, debug=args.debug)
-            w_glob                  = FedAvg([ w_glob[k] + w_updates[k]  for k in kept_indices ])  # 你本來的聚合
+            w_updates, kept_indices = crowdguard(w_locals, w_updates, net_glob, args, dataset_train, dict_users, debug=args.debug)
+            # 先把 kept_indices 上的更新“还原”成完整模型 state_dict
+            kept_state_dicts = []
+            for i in kept_indices:
+                full = copy.deepcopy(w_glob)
+                for k in full:
+                    full[k] = full[k] + w_updates[i][k].to(args.device)
+                kept_state_dicts.append(full)
+            # 再做 Federated Averaging
+            w_glob = FedAvg(kept_state_dicts)
         else:
             print("Wrong Defense Method")
             os._exit(0)

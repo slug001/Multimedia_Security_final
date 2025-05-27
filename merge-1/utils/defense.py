@@ -708,7 +708,7 @@ def lbfgs_torch(args, S_k_list, Y_k_list, v):
     return approx_prod.T
 
 
-def crowdguard(w_locals, w_updates, w_glob, args, debug=False):
+def crowdguard(w_locals, w_updates, w_glob, args, dataset_train, dict_users, debug=False):
     """
     完整的 CrowdGuard 流程：
       1) 多個驗證客戶端迴路：每個客戶端用自己的資料做 HLBIM 分析，投票（良性=1, 可疑=0）
@@ -733,7 +733,7 @@ def crowdguard(w_locals, w_updates, w_glob, args, debug=False):
         models.append(m)
 
         # 對應的本地資料 D_i
-        subset = Subset(args.dataset_train, args.dict_users[i])
+        subset = Subset(dataset_train, dict_users[i])
         loaders.append(DataLoader(subset, batch_size=args.local_bs, shuffle=False))
 
     # 2) 每個驗證客戶端做 HLBIM 分析並投票
