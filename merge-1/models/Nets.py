@@ -35,6 +35,20 @@ class BasicBlock(nn.Module):
         out = F.relu(out)
         return out
 
+    def predict_internal_states(self, x):
+        internals = []
+        # conv1->bn1->relu
+        y = self.conv1(x); internals.append(y.clone().detach())
+        y = self.bn1(y); y = F.relu(y)
+        # conv2->bn2
+        y = self.conv2(y); internals.append(y.clone().detach())
+        y = self.bn2(y)
+        # shortcut
+        sc = self.shortcut(x)
+        # sum + relu
+        y = F.relu(y + sc)
+        return internals, y
+
 
 class Bottleneck(nn.Module):
     expansion = 4
@@ -65,6 +79,22 @@ class Bottleneck(nn.Module):
         out += self.shortcut(x)
         out = F.relu(out)
         return out
+
+    def predict_internal_states(self, x):
+        internals=[]
+        # conv1
+        y = self.conv1(x); internals.append(y.clone().detach())
+        y = self.bn1(y); y = F.relu(y)
+        # conv2
+        y = self.conv2(y); internals.append(y.clone().detach())
+        y = self.bn2(y); y = F.relu(y)
+        # conv3
+        y = self.conv3(y); internals.append(y.clone().detach())
+        y = self.bn3(y)
+        # shortcut + sum + relu
+        sc = self.shortcut(x)
+        y = F.relu(y + sc)
+        return internals, y
 
 
 class ResNet(nn.Module):
@@ -108,7 +138,8 @@ class ResNet(nn.Module):
         out = out.view(out.size(0), -1)
         out = self.linear(out)
         return out
-    
+
+
 class SequentialWithInternalStatePrediction(nn.Sequential):
     def predict_internal_states(self, x):
         internals = []
@@ -118,53 +149,53 @@ class SequentialWithInternalStatePrediction(nn.Sequential):
                 internals.append(x.clone().detach())
         return internals, x
 
-class ResNetWithInternals(ResNet):
+class ResNetWithInternals(nn.Module):
     def __init__(self, block, num_blocks, num_classes=10):
-        super().__init__(block, num_blocks, num_classes)
-        # 把 conv1+bn1+relu 包成可回傳中間態的序列
-        self.initial = SequentialWithInternalStatePrediction(
-            self.conv1, self.bn1, nn.ReLU(inplace=True)
-        )
-        # 同理，將每層 layer1~4 裏的 block, 再用一個 wrapper 包一次
-        self.layer1 = SequentialWithInternalStatePrediction(*self.layer1)
-        self.layer2 = SequentialWithInternalStatePrediction(*self.layer2)
-        self.layer3 = SequentialWithInternalStatePrediction(*self.layer3)
-        self.layer4 = SequentialWithInternalStatePrediction(*self.layer4)
-        # 線性分類器也一樣
-        self.classifier = SequentialWithInternalStatePrediction(
-            nn.Flatten(),
-            self.linear
-        )
+        super().__init__()
+        self.in_planes = 64
+        # 定義與原 ResNet 相同
+        self.conv1 = nn.Conv2d(3, 64, 3, 1, 1, bias=False)
+        self.bn1   = nn.BatchNorm2d(64)
+        self.layer1 = self._make_layer(block,  64, num_blocks[0], stride=1)
+        self.layer2 = self._make_layer(block, 128, num_blocks[1], stride=2)
+        self.layer3 = self._make_layer(block, 256, num_blocks[2], stride=2)
+        self.layer4 = self._make_layer(block, 512, num_blocks[3], stride=2)
+        self.linear = nn.Linear(512*block.expansion, num_classes)
+
+    def _make_layer(self, block, planes, num_blocks, stride):
+        layers=[]
+        strides=[stride]+[1]*(num_blocks-1)
+        for s in strides:
+            layers.append(block(self.in_planes, planes, s))
+            self.in_planes = planes*block.expansion
+        return nn.Sequential(*layers)
 
     def forward(self, x):
-        x = self.initial(x)
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        x = self.layer4(x)
-        x = F.avg_pool2d(x, 4)
-        x = x.view(x.size(0), -1)
-        x = self.classifier(x)
-        return x
+        out = F.relu(self.bn1(self.conv1(x)))
+        out = self.layer1(out); out = self.layer2(out)
+        out = self.layer3(out); out = self.layer4(out)
+        out = F.avg_pool2d(out, 4)
+        out = out.view(out.size(0), -1)
+        return self.linear(out)
 
     def predict_internal_states(self, x):
-        internals = []
-        out, x = self.initial.predict_internal_states(x)
-        internals += out
-        out, x = self.layer1.predict_internal_states(x)
-        internals += out
-        out, x = self.layer2.predict_internal_states(x)
-        internals += out
-        out, x = self.layer3.predict_internal_states(x)
-        internals += out
-        out, x = self.layer4.predict_internal_states(x)
-        internals += out
-        # 池化與扁平化後再收一次
-        x = F.avg_pool2d(x, 4)
-        x = x.view(x.size(0), -1)
-        out, x = self.classifier.predict_internal_states(x)
-        internals += out
+        internals=[]
+        # 第 1 層 conv1
+        y = self.conv1(x); internals.append(y.clone().detach())
+        y = self.bn1(y); y = F.relu(y)
+        # 依序跑每個 block 並收集它裡面的 internals
+        for layer in [self.layer1, self.layer2, self.layer3, self.layer4]:
+            for block in layer:
+                b_ints, y = block.predict_internal_states(y)
+                internals += b_ints
+        # 池化
+        y = F.avg_pool2d(y, 4)
+        # 展平
+        y = y.view(y.size(0), -1)
+        # 最後一層線性
+        z = self.linear(y); internals.append(z.clone().detach())
         return internals
+    
 
 # def NarrowResNet18():
 #     return NarrowResNet(BasicBlock, [2, 2, 2, 2])
@@ -441,22 +472,62 @@ class CNN_MNIST(nn.Module):
 
 #### checking if ResNet weights are identical to ResNetWithInternals weights
 
-def transfer_resnet_weights_to_internals(resnet, resnet_internals):
-    # Copy initial
-    resnet_internals.initial[0].load_state_dict(resnet.conv1.state_dict())
-    resnet_internals.initial[1].load_state_dict(resnet.bn1.state_dict())
-    # Copy layers
-    for i in range(1, 5):
-        getattr(resnet_internals, f'layer{i}').load_state_dict(getattr(resnet, f'layer{i}').state_dict())
-    # Copy classifier
-    resnet_internals.classifier[1].load_state_dict(resnet.linear.state_dict())
-
 if __name__ == '__main__':
+    # test 1
     x = torch.randn(1, 3, 32, 32)
     model1 = ResNet(BasicBlock, [2,2,2,2])
     model2 = ResNetWithInternals(BasicBlock, [2,2,2,2])
-    transfer_resnet_weights_to_internals(model1, model2)
+    
+    model2.load_state_dict(model1.state_dict())
 
     out1 = model1(x)
     out2 = model2(x)
     print(torch.allclose(out1, out2))  # Should be True
+
+    # test 2
+    for seed in [42, 123, 999]:
+        torch.manual_seed(seed)
+        for _ in range(10):                # 10 個 batch
+            x = torch.randn(8, 3, 32, 32)  # batch size 8
+            out1 = model1(x)
+            out2 = model2(x)
+            assert torch.allclose(out1, out2, atol=1e-6)
+    print("Random batch test passed.")
+
+    # test 3
+    from torchvision import datasets, transforms
+    from torch.utils.data import DataLoader
+
+    transform = transforms.Compose([
+        transforms.ToTensor(), 
+        transforms.Normalize((0.5,)*3, (0.5,)*3)
+    ])
+    trainset = datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
+    loader = DataLoader(trainset, batch_size=16, shuffle=False)
+
+    # 拿前 5 個 batch：
+    for i, (x, _) in enumerate(loader):
+        if i >= 5: break
+        out1 = model1(x)
+        out2 = model2(x)
+        assert torch.allclose(out1, out2, atol=1e-6)
+    print("CIFAR-10 batch test passed.")
+    
+    # test 4
+    x = torch.randn(2, 3, 32, 32)
+    model = ResNetWithInternals(BasicBlock, [2,2,2,2])
+    # 如果需要比兩個models
+    # model2.load_state_dict(model1.state_dict())
+
+    # 1. 呼叫 predict_internal_states
+    internals = model.predict_internal_states(x)
+    print(f"Number of internal states: {len(internals)}")
+
+    # 2. 印出每個中間層 shape
+    for i, t in enumerate(internals):
+        print(f"Internal {i}: shape={t.shape}")
+
+    # 3. 最後一個 internal 應該和 forward 結果一致
+    out = model(x)
+    last_internal = internals[-1]
+    print("Forward output == last internal:", torch.allclose(out, last_internal, atol=1e-6))
