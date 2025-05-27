@@ -275,7 +275,7 @@ if __name__ == '__main__':
         elif args.defence == 'flame':
             w_glob = flame(w_locals, w_updates, w_glob, args, debug=args.debug)
         elif args.defence == 'crowdguard':
-            crowdguard(w_locals, w_updates, w_glob, args, debug=args.debug)
+            crowdguard(w_locals, w_updates, w_glob, args,dataset_test, debug=args.debug)
         else:
             print("Wrong Defense Method")
             os._exit(0)

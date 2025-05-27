@@ -108,6 +108,39 @@ class ResNet(nn.Module):
         out = out.view(out.size(0), -1)
         out = self.linear(out)
         return out
+    
+    def all_selected_internal_states(self, x):
+        """
+        獲取多個選定隱藏層的輸出，類似 CrowdGuard 中的 predict_internal_states。
+        返回一個包含各選定層輸出的列表。
+        """
+        outputs = []
+        # conv1 -> bn1
+        out = self.conv1(x)
+        outputs.append(out.clone().detach()) # conv1 的輸出
+        out = self.bn1(out)
+        outputs.append(out.clone().detach()) # bn1 的輸出
+        # layer1->4
+        out = self.layer1(out)
+        outputs.append(out.clone().detach()) # layer1 的輸出
+        out = self.layer2(out)
+        outputs.append(out.clone().detach()) # layer2 的輸出
+        out = self.layer3(out)
+        outputs.append(out.clone().detach()) # layer3 的輸出
+        out = self.layer4(out)
+        outputs.append(out.clone().detach()) # layer4 的輸出
+        # avgpool
+        out_after_avgpool = F.avg_pool2d(out, 4) # <--- 直接調用函數式接口
+        outputs.append(out_after_avgpool.clone().detach()) # avgpool 的輸出 (展平前)
+        # Flattened features (最後的隱藏狀態)
+        out_flattened = out_after_avgpool.view(out_after_avgpool.size(0), -1)
+        # Linear (最終輸出)
+        final_prediction = self.linear(out_flattened)
+        outputs.append(final_prediction.clone().detach()) # 最終預測結果
+
+        return outputs
+
+
 
 # def NarrowResNet18():
 #     return NarrowResNet(BasicBlock, [2, 2, 2, 2])

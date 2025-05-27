@@ -1,4 +1,6 @@
 # -*- coding = utf-8 -*-
+from models.Nets import ResNet18
+
 import numpy as np
 import torch
 import copy
@@ -707,5 +709,24 @@ def lbfgs_torch(args, S_k_list, Y_k_list, v):
     return approx_prod.T
 
 
-def crowdguard(local_model, update_params, global_model, args, debug=False):
+def crowdguard(local_model, update_params, global_model, args,dataset_test, debug=False,num_samples_to_observe=5):
     print("##### CrowdGuard #####")
+    device = args.device
+    ModelToUse = ResNet18
+    # 1a. 實例化全局模型
+    global_model_instance = ModelToUse().to(device)
+    global_model_instance.load_state_dict(global_model)
+    global_model_instance.eval()
+
+    # 1b. 實例化所有本地模型
+    local_model_instances = []
+    for i, state_dict in local_model:
+        temp_model = ModelToUse().to(device) # 使用傳入的類來創建實例
+        temp_model.load_state_dict(state_dict)
+        temp_model.eval()
+        local_model_instances.append(temp_model)
+    
+    print(f"\n--- CrowdGuard: Preparing data from dataset_test")
+    print(f"dataset_test size"+ len(dataset_test))
+
+    print("##### CrowdGuard  end #####")
