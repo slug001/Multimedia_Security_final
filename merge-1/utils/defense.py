@@ -1,6 +1,5 @@
 # -*- coding = utf-8 -*-
 import numpy as np
-from CrowdGuard.CrowdGuardClientValidation import CrowdGuardClientValidation
 import torch
 import copy
 import time
@@ -707,24 +706,23 @@ def lbfgs_torch(args, S_k_list, Y_k_list, v):
 
     return approx_prod.T
 
-
+from torch.utils.data import DataLoader, Subset
+from sklearn.cluster import AgglomerativeClustering, DBSCAN
+from CrowdGuard.CrowdGuardClientValidation import CrowdGuardClientValidation
 def crowdguard(w_locals, w_updates, w_glob, args, dataset_train, dict_users, debug=False):
     """
-    完整的 CrowdGuard 流程：
-      1) 多個驗證客戶端迴路：每個客戶端用自己的資料做 HLBIM 分析，投票（良性=1, 可疑=0）
-      2) 服務器端堆疊式聚類：先 Agglomerative 把「投票向量」分兩群，取大群（多數良性投票者），
-         再在大群中用 DBSCAN 找最頻繁的投票模式，作為最終決策。
-      3) 過濾掉最終標記可疑的模型更新，回傳 benign updates。
+    完整的 CrowdGuard 流程，已接入 args.crowdguard_k & args.crowdguard_distance：
+       • 第一层聚类簇数由 args.crowdguard_k 决定
+       • HLBIM 距离计算仅使用 args.crowdguard_distance
     """
 
     num_clients = len(w_locals)
-    client_ids = list(range(num_clients))
 
-    # 1) 重建每個客戶端模型，並為每個模擬一個驗證客戶端
+    # === 1) 重建模型 & DataLoader ===
     models = []
     loaders = []
     for i, delta in enumerate(w_updates):
-        # 重建模型 Li = Gt + Δi
+        # Li = Gt + Δi
         m = copy.deepcopy(w_glob).to(args.device)
         sd = m.state_dict()
         for k in sd:
@@ -732,150 +730,68 @@ def crowdguard(w_locals, w_updates, w_glob, args, dataset_train, dict_users, deb
         m.load_state_dict(sd)
         models.append(m)
 
-        # 對應的本地資料 D_i
+        # Di
         subset = Subset(dataset_train, dict_users[i])
         loaders.append(DataLoader(subset, batch_size=args.local_bs, shuffle=False))
 
-    # 2) 每個驗證客戶端做 HLBIM 分析並投票
-    # votes[j,i] = 1 表示第 j 個驗證者覺得 Li (i-th model) 良性；0 表示可疑
+    # === 2) HLBIM 分析 & 投票 ===
     votes = np.zeros((num_clients, num_clients), dtype=int)
     for j in range(num_clients):
         if debug:
-            print(f"[CrowdGuard] Validator #{j} running HLBIM with own_index={j}")
+            print(f"[CrowdGuard] Validator #{j} using distance={args.crowdguard_distance}")
+        # 只用一个距离度量
         poisoned_idxs = CrowdGuardClientValidation.validate_models(
             global_model=copy.deepcopy(w_glob).to(args.device),
             models=models,
             own_client_index=j,
             local_data=loaders[j],
             device=args.device,
+            # 假设你在 validate_models 里加入了 distance 参数支持：
+            distance=args.crowdguard_distance
         )
-        # fill votes row：那些沒被標成可疑的就給 1
         for i in range(num_clients):
             votes[j, i] = 0 if i in poisoned_idxs else 1
 
     if debug:
-        print("All votes matrix (validators × models):")
+        print("All votes matrix:")
         print(votes)
 
-    # 3) 服務器端堆疊式聚類
-
-    # 3.1 第一層：把「驗證者」按其 votes 向量分成兩群
-    ac = AgglomerativeClustering(n_clusters=2)
-    labels = ac.fit_predict(votes)  # labels[j] ∈ {0,1}
-    # 找出更大的那一群（多數健全驗證者）
+    # === 3.1) 第一层堆叠式聚类：Agglomerative with args.crowdguard_k ===
+    ac = AgglomerativeClustering(n_clusters=args.crowdguard_k)
+    labels = ac.fit_predict(votes)
     counts = np.bincount(labels)
     majority_label = np.argmax(counts)
     majority_validators = [j for j in range(num_clients) if labels[j] == majority_label]
+
     if debug:
         print("Majority validators:", majority_validators)
 
-    # 3.2 第二層：在「多數驗證者」的 votes 子集上做 DBSCAN 找最頻繁模式
-    sub_votes = votes[majority_validators]  # shape (|maj|, num_clients)
-    # 把每行作為一個點，再 DBSCAN 找核心群
-    db = DBSCAN(eps=args.crowdguard_beta, min_samples=max(1, len(majority_validators)//2))
+    # === 3.2) 第二层：DBSCAN on majority_validators' votes ===
+    sub_votes = votes[majority_validators]
+    db = DBSCAN(eps=args.crowdguard_beta,
+                min_samples=max(1, len(majority_validators)//2))
     core_labels = db.fit_predict(sub_votes)
-    # 找出出現最多次的 core_labels >0 （-1 是噪聲）
     valid_labels = core_labels[core_labels >= 0]
-    if len(valid_labels)==0:
-        # 如果全部噪聲，退回最簡單的多數投票：每列votes之和 > num_validators/2
+
+    if len(valid_labels) == 0:
         final_votes = (votes.sum(axis=0) > (num_clients/2)).astype(int)
     else:
-        # 在核心群中挑出出現最頻繁的 label
         lab_counts = np.bincount(valid_labels)
         top_lab = np.argmax(lab_counts)
-        # 對應那一群的 votes，取他們的行的逐列模式
         mask = (core_labels == top_lab)
-        core_votes = sub_votes[mask]  # shape (n_core, num_clients)
-        # 求逐列 mode
-        final_votes = []
-        for col in range(num_clients):
-            col_vals = core_votes[:, col]
-            # mode: 0 or 1
-            final_votes.append(int(np.bincount(col_vals).argmax()))
-        final_votes = np.array(final_votes, dtype=int)
+        core_votes = sub_votes[mask]
+        final_votes = np.array([
+            int(np.bincount(core_votes[:, col]).argmax())
+            for col in range(num_clients)
+        ], dtype=int)
 
     if debug:
-        print("Final aggregated votes (1=benign, 0=poisoned):")
-        print(final_votes)
+        print("Final aggregated votes:", final_votes)
 
-    # 4) 過濾出最終投票為 1（良性）的更新
-    kept_indices = [i for i in range(num_clients) if final_votes[i]==1]
+    # === 4) 过滤 & 聚合 ===
+    kept_indices = [i for i, v in enumerate(final_votes) if v == 1]
     filtered_updates = [w_updates[i] for i in kept_indices]
     if debug:
-        print("Clients kept after CrowdGuard:", kept_indices)
+        print("Clients kept:", kept_indices)
 
     return filtered_updates, kept_indices
-
-"""
-def crowdguard(local_model, update_params, global_model, args, debug=False):
-    print("##### CrowdGuard #####")
-
-
-    # 初始化 CrowdGuard（依照 CrowdGuard 論文預設超參數）
-    crowdguard_validator = CrowdGuardClientValidation(
-        beta=args.crowdguard_beta,   # 例如 0.1，控制 similarity threshold
-        k=args.crowdguard_k,         # 例如 5，聚類個數
-        distance=args.crowdguard_distance,  # 'cosine' or 'euclidean'
-        device=args.device           # 使用的裝置，例如 'cuda' 或 'cpu'
-    )
-
-    # 呼叫 CrowdGuard 主程序（會過濾掉可疑 client 更新）
-    selected_indices = crowdguard_validator.run(
-        updates=update_params,
-        global_model=global_model,
-        local_model=local_model
-    )
-
-    if debug:
-        print(f"Selected {len(selected_indices)} clients out of {len(update_params)}:")
-        print(selected_indices)
-
-    # 回傳通過驗證的 client 更新
-    filtered_updates = [update_params[i] for i in selected_indices]
-    return filtered_updates
-
-    #### past attempt
-    # 載入 update_params: list of local model param differences from clients
-    # 1. 對所有 update_params 做 flatten
-    # 2. 計算 pairwise cosine similarity matrix
-    # 3. 找出一組相似的 clients（如透過 DBSCAN）
-    # 4. 選出他們的 updates 再聚合
-    # 5. 回傳新的 global weights（或更新 global_model）
-
-    # 1. flatten 所有 client 更新成向量矩陣
-    flattened_updates = [parameters_dict_to_vector(upd).cpu().numpy() for upd in update_params]
-    flattened_updates = np.stack(flattened_updates)  # shape: (num_clients, param_size)
-
-    # 2. 計算 pairwise cosine similarity矩陣 (用 sklearn pairwise cosine_similarity)
-    from sklearn.metrics.pairwise import cosine_similarity
-    cos_sim_matrix = cosine_similarity(flattened_updates)
-
-    if debug:
-        print("Cosine similarity matrix:")
-        print(cos_sim_matrix)
-
-    # 3. 用 DBSCAN 找相似群組（eps和min_samples可以調整）
-    clustering = DBSCAN(eps=0.1, min_samples=int(len(update_params) / 2), metric='precomputed').fit(1 - cos_sim_matrix)
-
-    labels = clustering.labels_
-    if debug:
-        print("DBSCAN cluster labels:", labels)
-
-    # 4. 找最大群組 (label >= 0)
-    unique_labels, counts = np.unique(labels[labels >= 0], return_counts=True)
-    if len(unique_labels) == 0:
-        # 沒找到群組就用全部的更新
-        selected_indices = list(range(len(update_params)))
-    else:
-        max_cluster = unique_labels[np.argmax(counts)]
-        selected_indices = [i for i, lbl in enumerate(labels) if lbl == max_cluster]
-
-    if debug:
-        print(f"Selected clients indices for aggregation: {selected_indices}")
-
-    # 5. 聚合選出來的更新
-    selected_updates = [update_params[i] for i in selected_indices]
-    updated_global_model = average_updates(selected_updates)
-
-    return updated_global_model
-"""
