@@ -233,7 +233,7 @@ class CrowdGuardClientValidation:
 
     @staticmethod
     def __prune_poisoned_models(num_layers, total_number_of_clients, own_client_index,
-                                distances_by_metric, verbose=False):
+                                distances_by_metric, verbose=True):
         detected_poisoned_models = []
         for distance_type in distances_by_metric.keys():
 
