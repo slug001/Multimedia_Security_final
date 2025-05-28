@@ -225,6 +225,7 @@ class CrowdGuardClientValidation:
             tmp = CrowdGuardClientValidation.__predict_for_single_model(global_model, local_data,
                                                                         device)
             global_model_predictions, sample_label_list, n_layers = tmp
+        print("[NOW_DEBUGGING] sample_indices_by_label defined here")
         sample_indices_by_label = {}
         for s_i, label in enumerate(sample_label_list):
             if label not in sample_indices_by_label.keys():
