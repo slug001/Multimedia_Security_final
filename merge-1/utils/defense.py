@@ -836,10 +836,10 @@ def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_use
     core_indices = db_map[top_label]
     if debug:
         print(f'[CrowdGuard] DBScan Clustering: {core_indices}')
-    core_votes = sub_votes[core_indices]
+    single_sample_idx = core_indices[0]
 
-    # Final per-model vote via majority within core
-    final_votes = np.array([np.bincount(core_votes[:, c]).argmax() for c in range(m)])
+    # Final per-model vote
+    final_votes = sub_votes[single_sample_idx]
     if debug:
         print(f"[CrowdGuard] Final votes (0=poisoned, 1=benign): {final_votes}")
 
