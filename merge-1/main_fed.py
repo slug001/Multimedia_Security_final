@@ -232,7 +232,8 @@ if __name__ == '__main__':
             w_updates = [] # 存儲客戶端模型權重相對於上一輪全域模型的更新量列表。
         
         m = max(int(args.frac * args.num_users), 1)  # number of clients in each round
-        idxs_users = np.random.choice(range(args.num_users), m, replace=False)  # select the clients for a single round
+        available_uids = list(dict_users.keys())
+        idxs_users = np.random.choice(available_uids, m, replace=False)  # select the clients for a single round
 
         if backdoor_begin_acc < val_acc_list[-1]:  # start attack only when Acc overtakes backdoor_begin_acc
             backdoor_begin_acc = 0
