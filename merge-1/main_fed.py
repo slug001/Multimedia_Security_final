@@ -249,6 +249,7 @@ if __name__ == '__main__':
                 attack_number = 0
         mal_weight=[]
         mal_loss=[]
+        printed_debug = False
         for num_turn, idx in enumerate(idxs_users):
             if attack_number > 0:  # upload models for malicious clients
                 args.iter = iter
@@ -262,15 +263,13 @@ if __name__ == '__main__':
                 attack_number -= 1
                 w = mal_weight[0]  # 取第一個惡意模型權重
             else:  # upload models for benign clients
-                printed_debug = False
-                for num_turn, idx in enumerate(idxs_users):
-                    if not printed_debug:
-                        print("[NOW_DBUGGING] ---- Debug dump ----")
-                        print("[NOW_DBUGGING] dict_users keys:", sorted(dict_users.keys()))
-                        print("[NOW_DBUGGING] idxs_users:", idxs_users)
-                        print(f"[NOW_DBUGGING] Loop num_turn={num_turn}, idx={idx} (type: {type(idx)})")
-                        print(f"[NOW_DBUGGING] m={m}, len(dict_users)={len(dict_users)}")
-                        printed_debug = True
+                if not printed_debug:
+                    print("[NOW_DBUGGING] ---- Debug dump ----")
+                    print("[NOW_DBUGGING] dict_users keys:", sorted(dict_users.keys()))
+                    print("[NOW_DBUGGING] idxs_users:", idxs_users)
+                    print(f"[NOW_DBUGGING] Loop num_turn={num_turn}, idx={idx} (type: {type(idx)})")
+                    print(f"[NOW_DBUGGING] m={m}, len(dict_users)={len(dict_users)}")
+                    printed_debug = True
                 local = LocalUpdate(
                     args=args, dataset=dataset_train, idxs=dict_users[int(idx)])
                 w, loss = local.train(
