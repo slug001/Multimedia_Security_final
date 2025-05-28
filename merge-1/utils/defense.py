@@ -261,14 +261,21 @@ def layer_multi_krum(layer_gradients, n_attackers, args, multi_k=False):
 
 def multi_krum(gradients, n_attackers, args, multi_k=False):
     grads = flatten_grads(gradients)
+    print("[NOW_DBUGGING] multi_krum start: len(grads)=", len(grads), "n_attackers=", n_attackers)
     candidates = []
     candidate_indices = []
     remaining_updates = torch.from_numpy(grads)
+    # 确保 grads 不空
+    if len(remaining_updates) == 0:
+        raise RuntimeError("multi_krum: no updates to defend against!")
     all_indices = np.arange(len(grads))
     
     score_record = None
 
+    entered = False
     while len(remaining_updates) > 2 * n_attackers + 2:
+        entered = True
+        print("[DBG] Entering krum loop; remaining_updates=", len(remaining_updates))
         torch.cuda.empty_cache()
         distances = []
         for update in remaining_updates:
@@ -282,6 +289,7 @@ def multi_krum(gradients, n_attackers, args, multi_k=False):
         distances = torch.sort(distances, dim=1)[0]
         scores = torch.sum(
             distances[:, :len(remaining_updates) - 2 - n_attackers], dim=1)
+        print("[DBG] Computed scores:", scores)
         
         if args.log_distance == True and score_record == None:
             print('defense.py line149 (krum distance scores):', scores)
@@ -308,6 +316,9 @@ def multi_krum(gradients, n_attackers, args, multi_k=False):
         if selected_client < num_malicious_clients:
             args.wrong_mal += 1
 
+    # 在使用 scores 之前再检查一次
+    if 'scores' not in locals():
+        raise RuntimeError("multi_krum: scores was never computed!")
     for i in range(len(scores)):
         if i < num_malicious_clients:
             args.mal_score += scores[i]
@@ -796,6 +807,7 @@ def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_use
         # Di：用 real_uid 取子集
         indices = sorted(list(dict_users[real_uid]))
         subset = Subset(dataset_train, indices)
+        print(f"[NOW_DEBUGGING] Client {real_uid} has {len(dict_users[real_uid])} samples")
         loaders.append(DataLoader(subset, batch_size=args.local_bs, shuffle=False))
 
     # === 2) HLBIM 分析 & 投票 ===
