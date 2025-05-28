@@ -262,7 +262,7 @@ if __name__ == '__main__':
                 w = mal_weight[0]  # 取第一個惡意模型權重
             else:  # upload models for benign clients
                 local = LocalUpdate(
-                    args=args, dataset=dataset_train, idxs=dict_users[idx])
+                    args=args, dataset=dataset_train, idxs=dict_users[int(idx)])
                 w, loss = local.train(
                     net=copy.deepcopy(net_glob).to(args.device))
             w_updates.append(get_update(w, w_glob)) # 計算並儲存模型更新。
