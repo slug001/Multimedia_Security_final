@@ -165,37 +165,38 @@ class CrowdGuardClientValidation:
         model.eval()
         model = model.to(device)
         number_of_previous_samples = 0
-        for batch_id, batch in enumerate(local_data):
-            data, target = batch
-            data, target = data.to(device), target.to(device)
-            output = model.predict_internal_states(data)
-            if num_layers is None:
-                num_layers = len(output)
-            assert num_layers == len(output)
+        with torch.no_grad():
+            for batch_id, batch in enumerate(local_data):
+                data, target = batch
+                data, target = data.to(device), target.to(device)
+                output = model.predict_internal_states(data)
+                if num_layers is None:
+                    num_layers = len(output)
+                assert num_layers == len(output)
 
-            for layer_output_index, layer_output_values in enumerate(output):
-                for idx in range(target.shape[0]):
-                    sample_idx = number_of_previous_samples + idx
-                    assert len(predictions) >= sample_idx
-                    if len(predictions) == sample_idx:
-                        assert layer_output_index == 0
-                        predictions.append([])
+                for layer_output_index, layer_output_values in enumerate(output):
+                    for idx in range(target.shape[0]):
+                        sample_idx = number_of_previous_samples + idx
+                        assert len(predictions) >= sample_idx
+                        if len(predictions) == sample_idx:
+                            assert layer_output_index == 0
+                            predictions.append([])
 
-                    if layer_output_index == 0:
-                        expected_predictions = sample_idx + 1
-                    else:
-                        expected_predictions = number_of_previous_samples + target.shape[0]
-                    assert_msg = f'{len(predictions)} vs. {sample_idx} ({idx} {batch_id} '
-                    assert_msg += f'{layer_output_index} {number_of_previous_samples})'
-                    assert len(predictions) == expected_predictions, assert_msg
-                    assert_msg = f'{len(predictions[sample_idx])} {layer_output_index} '
-                    assert_msg += f'{sample_idx} {batch_id} {idx} {number_of_previous_samples}'
-                    assert len(predictions[sample_idx]) == layer_output_index, assert_msg
-                    value = layer_output_values[idx].clone().detach().cpu()
-                    predictions[sample_idx].append(value)
-            number_of_previous_samples += target.shape[0]
-            for t in target:
-                sample_label_list.append(t.detach().clone().cpu().item())
+                        if layer_output_index == 0:
+                            expected_predictions = sample_idx + 1
+                        else:
+                            expected_predictions = number_of_previous_samples + target.shape[0]
+                        assert_msg = f'{len(predictions)} vs. {sample_idx} ({idx} {batch_id} '
+                        assert_msg += f'{layer_output_index} {number_of_previous_samples})'
+                        assert len(predictions) == expected_predictions, assert_msg
+                        assert_msg = f'{len(predictions[sample_idx])} {layer_output_index} '
+                        assert_msg += f'{sample_idx} {batch_id} {idx} {number_of_previous_samples}'
+                        assert len(predictions[sample_idx]) == layer_output_index, assert_msg
+                        value = layer_output_values[idx].clone().detach().cpu()
+                        predictions[sample_idx].append(value)
+                number_of_previous_samples += target.shape[0]
+                for t in target:
+                    sample_label_list.append(t.detach().clone().cpu().item())
         model.cpu()
         return predictions, sample_label_list, num_layers
 
@@ -210,19 +211,20 @@ class CrowdGuardClientValidation:
         - The number of layers from the model
         """
         all_models_predictions = []
-        for model_index, model in enumerate(models):
-            predictions, _, _ = CrowdGuardClientValidation.__predict_for_single_model(model,
-                                                                                      local_data,
-                                                                                      device)
-            for sample_index, layer_predictions_for_sample in enumerate(predictions):
-                if sample_index >= len(all_models_predictions):
-                    assert model_index == 0
-                    assert len(all_models_predictions) == sample_index
-                    all_models_predictions.append([])
-                all_models_predictions[sample_index].append(layer_predictions_for_sample)
-        tmp = CrowdGuardClientValidation.__predict_for_single_model(global_model, local_data,
-                                                                    device)
-        global_model_predictions, sample_label_list, n_layers = tmp
+        with torch.no_grad():
+            for model_index, model in enumerate(models):
+                predictions, _, _ = CrowdGuardClientValidation.__predict_for_single_model(model,
+                                                                                        local_data,
+                                                                                        device)
+                for sample_index, layer_predictions_for_sample in enumerate(predictions):
+                    if sample_index >= len(all_models_predictions):
+                        assert model_index == 0
+                        assert len(all_models_predictions) == sample_index
+                        all_models_predictions.append([])
+                    all_models_predictions[sample_index].append(layer_predictions_for_sample)
+            tmp = CrowdGuardClientValidation.__predict_for_single_model(global_model, local_data,
+                                                                        device)
+            global_model_predictions, sample_label_list, n_layers = tmp
         sample_indices_by_label = {}
         for s_i, label in enumerate(sample_label_list):
             if label not in sample_indices_by_label.keys():
