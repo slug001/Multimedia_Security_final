@@ -744,20 +744,18 @@ def determine_biggest_cluster(clustering):
             biggest_cluster_size = size_of_current_cluster
     return biggest_cluster_id
 
-def print_vote_matrix(votes, malicious_list):
-    print("\n[CrowdGuard] === Vote Matrix Summary ===")
-    m = votes.shape[0]
-    for i in range(m):
-        row = votes[i]
-        print(f"Validator {i}: {row.tolist()}")
-
-    print("\n[CrowdGuard] Client summary:")
-    for client_id in range(m):
-        true_type = "MALICIOUS" if client_id in malicious_list else "BENIGN"
-        vote_col = votes[:, client_id]
-        num_votes = int(vote_col.sum())
-        print(f"Client {client_id:2d}: True={true_type:9s} | Votes for benign = {num_votes}/{m}")
-
+def print_vote_matrix(votes, malicious_list, idxs_users, m):
+    print("\n[CrowdGuard] === Validator Global Mapping ===")
+    # idxs_users 是本輪選中的全局用戶 ID 列表，長度 m
+    # local j -> global idxs_users[j]
+    for j in range(m):
+        global_uid = idxs_users[j]
+        true_type = "MALICIOUS" if global_uid in malicious_list else "BENIGN"
+        print(f"Validator {j} → Global User {global_uid}: True={true_type}")
+    print("[CrowdGuard] ============================\n")
+    print("[CrowdGuard] === Vote Matrix Summary ===")
+    for j in range(m):
+        print(f"Validator {j} (Global {idxs_users[j]}): {votes[j].tolist()}")
     print("[CrowdGuard] ============================\n")
 
 # CrowdGuard defense using the utility functions
@@ -803,11 +801,9 @@ def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_use
         # Build vote row: 1 for benign (including self), 0 for poisoned
         for i in range(m):
             votes[j, i] = 1 if (i == j or i not in poisoned) else 0
-        if debug:
-            print("[CrowdGuard] Validator voting pattern matrix:")
-            for i, row in enumerate(votes):
-                print(f"Validator {i}: {row}")
-            print_vote_matrix(votes, malicious_list)
+    # 在 crowdguard() 的 votes 建構後，直接印出對應關係
+    if debug:
+        print_vote_matrix(votes, malicious_list, idxs_users, m)
 
     # === 3) 堆疊式聚类 & 最終投票 ===
     # 3.1 Agglomerative → 選出 majority_validators
