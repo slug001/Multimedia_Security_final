@@ -267,7 +267,7 @@ def multi_krum(gradients, n_attackers, args, multi_k=False):
     remaining_updates = torch.from_numpy(grads)
     # 确保 grads 不空
     if len(remaining_updates) == 0:
-        raise RuntimeError("multi_krum: no updates to defend against!")
+        raise RuntimeError("[NOW_DBUGGING] multi_krum: no updates to defend against!")
     all_indices = np.arange(len(grads))
     
     score_record = None
@@ -275,7 +275,7 @@ def multi_krum(gradients, n_attackers, args, multi_k=False):
     entered = False
     while len(remaining_updates) > 2 * n_attackers + 2:
         entered = True
-        print("[DBG] Entering krum loop; remaining_updates=", len(remaining_updates))
+        print("[NOW_DBUGGING] Entering krum loop; remaining_updates=", len(remaining_updates))
         torch.cuda.empty_cache()
         distances = []
         for update in remaining_updates:
@@ -289,7 +289,7 @@ def multi_krum(gradients, n_attackers, args, multi_k=False):
         distances = torch.sort(distances, dim=1)[0]
         scores = torch.sum(
             distances[:, :len(remaining_updates) - 2 - n_attackers], dim=1)
-        print("[DBG] Computed scores:", scores)
+        print("[NOW_DBUGGING] Computed scores:", scores)
         
         if args.log_distance == True and score_record == None:
             print('defense.py line149 (krum distance scores):', scores)
@@ -318,7 +318,7 @@ def multi_krum(gradients, n_attackers, args, multi_k=False):
 
     # 在使用 scores 之前再检查一次
     if 'scores' not in locals():
-        raise RuntimeError("multi_krum: scores was never computed!")
+        raise RuntimeError("[NOW_DBUGGING] multi_krum: scores was never computed!")
     for i in range(len(scores)):
         if i < num_malicious_clients:
             args.mal_score += scores[i]
