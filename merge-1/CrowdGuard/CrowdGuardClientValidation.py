@@ -441,13 +441,13 @@ class CrowdGuardClientValidation:
             if debug:
                 print(f"\n[CrowdGuard] ===== Validator {own_client_index} Start Validation =====")
 
-            print(f"[DEBUG] Validator {own_client_index} sample counts by label:", {lab: len(idx_list) for lab, idx_list in sample_indices_by_label.items()})
             # Step 1: 預測模型層輸出
             if debug:
                 print("[CrowdGuard] Performing internal state prediction...")
             tmp = CrowdGuardClientValidation.__do_predictions(models, global_model, local_data, device)
             prediction_matrix, global_model_predictions, sample_indices_by_label, num_layers = tmp
             if debug:
+                print(f"[NOW_DEBUGGING] Validator {own_client_index} sample counts by label:", {lab: len(idx_list) for lab, idx_list in sample_indices_by_label.items()})
                 print(f"[CrowdGuard] Internal state prediction complete.")
                 print(f"[CrowdGuard] Total samples: {len(prediction_matrix)}")
                 print(f"[CrowdGuard] Total models validated: {len(models)}")
