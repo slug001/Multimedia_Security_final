@@ -261,13 +261,13 @@ def layer_multi_krum(layer_gradients, n_attackers, args, multi_k=False):
 
 def multi_krum(gradients, n_attackers, args, multi_k=False):
     grads = flatten_grads(gradients)
-    print("[NOW_DEBUGGING] multi_krum start: len(grads)=", len(grads), "n_attackers=", n_attackers)
+    print("[DEBUG] multi_krum start: len(grads)=", len(grads), "n_attackers=", n_attackers)
     candidates = []
     candidate_indices = []
     remaining_updates = torch.from_numpy(grads)
     # 确保 grads 不空
     if len(remaining_updates) == 0:
-        raise RuntimeError("[NOW_DEBUGGING] multi_krum: no updates to defend against!")
+        raise RuntimeError("[DEBUG] multi_krum: no updates to defend against!")
     all_indices = np.arange(len(grads))
     
     score_record = None
@@ -275,7 +275,7 @@ def multi_krum(gradients, n_attackers, args, multi_k=False):
     entered = False
     while len(remaining_updates) > 2 * n_attackers + 2:
         entered = True
-        print("[NOW_DEBUGGING] Entering krum loop; remaining_updates=", len(remaining_updates))
+        print("[DEBUG] Entering krum loop; remaining_updates=", len(remaining_updates))
         torch.cuda.empty_cache()
         distances = []
         for update in remaining_updates:
@@ -289,7 +289,7 @@ def multi_krum(gradients, n_attackers, args, multi_k=False):
         distances = torch.sort(distances, dim=1)[0]
         scores = torch.sum(
             distances[:, :len(remaining_updates) - 2 - n_attackers], dim=1)
-        print("[NOW_DEBUGGING] Computed scores:", scores)
+        print("[DEBUG] Computed scores:", scores)
         
         if args.log_distance == True and score_record == None:
             print('defense.py line149 (krum distance scores):', scores)
@@ -318,7 +318,7 @@ def multi_krum(gradients, n_attackers, args, multi_k=False):
 
     # 在使用 scores 之前再检查一次
     if 'scores' not in locals():
-        raise RuntimeError("[NOW_DEBUGGING] multi_krum: scores was never computed!")
+        raise RuntimeError("[DEBUG] multi_krum: scores was never computed!")
     for i in range(len(scores)):
         if i < num_malicious_clients:
             args.mal_score += scores[i]
@@ -812,8 +812,8 @@ def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_use
         # Di：用 real_uid 取子集
         indices = sorted(list(dict_users[real_uid]))
         subset = Subset(dataset_train, indices)
-        if debug:
-            print(f"[DEBUG] Client {real_uid} has {len(indices)} samples")
+        #if debug:
+        #    print(f"[DEBUG] Client {real_uid} has {len(indices)} samples")
         loaders.append(DataLoader(subset, batch_size=args.local_bs, shuffle=False))
 
         uid_to_model_index[real_uid] = local_pos

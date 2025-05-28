@@ -259,10 +259,12 @@ if __name__ == '__main__':
         mal_weight=[]
         mal_loss=[]
         idxs_final_users = np.array(idxs_users)
+        is_attacker = 0
         for num_turn, idx in enumerate(idxs_users):
             attacker_idx = idx
 
             if attack_number > 0:  # upload models for malicious clients
+                is_attacker = 1
                 args.iter = iter                
                 m_idx = None
                 """
@@ -274,13 +276,15 @@ if __name__ == '__main__':
                 attack_number -= 1
                 w = mal_weight[0]  # 取第一個惡意模型權重
             else:  # upload models for benign clients
+                is_attacker = 0
                 local = LocalUpdate(
                     args=args, dataset=dataset_train, idxs=dict_users[idx])
                 w, loss = local.train(
                     net=copy.deepcopy(net_glob).to(args.device))
             
-            true_type = "MALICIOUS" if idx in malicious_list else "BENIGN"
-            print(f"[Attacker] {true_type} global user {attacker_idx} with BENIGN update")
+            behavior = "ATTACK" if is_attacker else "NO ATTACK"
+            true_type = "MALICIOUS" if attacker_idx in malicious_list else "BENIGN"
+            print(f"[Attacker] {true_type} global user {attacker_idx} with behavior")
             idxs_final_users[num_turn] = attacker_idx
             w_updates.append(get_update(w, w_glob)) # 計算並儲存模型更新。
             if args.all_clients:

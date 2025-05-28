@@ -225,7 +225,7 @@ class CrowdGuardClientValidation:
             tmp = CrowdGuardClientValidation.__predict_for_single_model(global_model, local_data,
                                                                         device)
             global_model_predictions, sample_label_list, n_layers = tmp
-        print("[NOW_DEBUGGING] sample_indices_by_label defined here")
+        #print("[DEBUG] sample_indices_by_label defined here")
         sample_indices_by_label = {}
         for s_i, label in enumerate(sample_label_list):
             if label not in sample_indices_by_label.keys():
@@ -447,7 +447,7 @@ class CrowdGuardClientValidation:
             tmp = CrowdGuardClientValidation.__do_predictions(models, global_model, local_data, device)
             prediction_matrix, global_model_predictions, sample_indices_by_label, num_layers = tmp
             if debug:
-                print(f"[NOW_DEBUGGING] Validator {own_client_index} sample counts by label:", {lab: len(idx_list) for lab, idx_list in sample_indices_by_label.items()})
+                #print(f"[DEBUG] Validator {own_client_index} sample counts by label:", {lab: len(idx_list) for lab, idx_list in sample_indices_by_label.items()})
                 print(f"[CrowdGuard] Internal state prediction complete.")
                 print(f"[CrowdGuard] Total samples: {len(prediction_matrix)}")
                 print(f"[CrowdGuard] Total models validated: {len(models)}")
