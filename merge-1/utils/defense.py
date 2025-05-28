@@ -794,7 +794,7 @@ def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_use
     # === 1) 重建模型 & DataLoader ===
     models, loaders = [], []
     for local_pos, delta in enumerate(w_updates):
-        real_uid = int(idxs_users[local_pos])
+        real_uid = idxs_users[local_pos]
         # Li = Gt + Δi
         model = copy.deepcopy(global_model_copy).to(args.device)
         sd = model.state_dict()

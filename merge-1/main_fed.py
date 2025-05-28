@@ -231,9 +231,8 @@ if __name__ == '__main__':
             w_locals = []
             w_updates = [] # 存儲客戶端模型權重相對於上一輪全域模型的更新量列表。
         
-        dict_user_keys = list(dict_users.keys())
-        m = max(int(args.frac * len(dict_user_keys)), 1)  # number of clients in each round
-        idxs_users = np.random.choice(dict_user_keys, m, replace=False)  # select the clients for a single round
+        m = max(int(args.frac * args.num_users), 1)  # number of clients in each round
+        idxs_users = np.random.choice(range(args.num_users), m, replace=False)  # select the clients for a single round
         malicious_in_round = [uid for uid in idxs_users if uid in malicious_list]
         print(f"[NOW_DEBUGGING] malicious global users' UID in this round: {malicious_in_round}")
 
@@ -255,11 +254,12 @@ if __name__ == '__main__':
         for num_turn, idx in enumerate(idxs_users):
             if attack_number > 0:  # upload models for malicious clients
                 args.iter = iter                
+                m_idx = None
                 """
                 執行後門攻擊（包括 LSA 和自適應 BC 層攻擊）的核心步驟。
                 它會返回惡意客戶端生成的模型權重列表 (mal_weight)、損失和更新後的 args.attack_layers。
                 """
-                mal_weight, loss, args.attack_layers = attacker(malicious_list, attack_number, args.attack, dataset_train, dataset_test, dict_users, net_glob, args, idx = int(idx))
+                mal_weight, loss, args.attack_layers = attacker(malicious_list, attack_number, args.attack, dataset_train, dataset_test, dict_users, net_glob, args, idx = m_idx)
                 attack_number -= 1
                 w = mal_weight[0]  # 取第一個惡意模型權重
             else:  # upload models for benign clients
@@ -271,7 +271,7 @@ if __name__ == '__main__':
                     print(f"[NOW_DBUGGING] m={m}, len(dict_users)={len(dict_users)}")
                     printed_debug = True
                 local = LocalUpdate(
-                    args=args, dataset=dataset_train, idxs=dict_users[int(idx)])
+                    args=args, dataset=dataset_train, idxs=dict_users[idx])
                 w, loss = local.train(
                     net=copy.deepcopy(net_glob).to(args.device))
             w_updates.append(get_update(w, w_glob)) # 計算並儲存模型更新。
