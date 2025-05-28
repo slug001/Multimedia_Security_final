@@ -234,6 +234,8 @@ if __name__ == '__main__':
         dict_user_keys = list(dict_users.keys())
         m = max(int(args.frac * len(dict_user_keys)), 1)  # number of clients in each round
         idxs_users = np.random.choice(dict_user_keys, m, replace=False)  # select the clients for a single round
+        malicious_in_round = [uid for uid in idxs_users if uid in malicious_list]
+        print(f"[NOW_DEBUGGING] malicious global users' UID in this round: {malicious_in_round}")
 
         if backdoor_begin_acc < val_acc_list[-1]:  # start attack only when Acc overtakes backdoor_begin_acc
             backdoor_begin_acc = 0
@@ -252,14 +254,12 @@ if __name__ == '__main__':
         printed_debug = False
         for num_turn, idx in enumerate(idxs_users):
             if attack_number > 0:  # upload models for malicious clients
-                args.iter = iter
-                m_idx = None
-                
+                args.iter = iter                
                 """
                 執行後門攻擊（包括 LSA 和自適應 BC 層攻擊）的核心步驟。
                 它會返回惡意客戶端生成的模型權重列表 (mal_weight)、損失和更新後的 args.attack_layers。
                 """
-                mal_weight, loss, args.attack_layers = attacker(malicious_list, attack_number, args.attack, dataset_train, dataset_test, dict_users, net_glob, args, idx = m_idx)
+                mal_weight, loss, args.attack_layers = attacker(malicious_list, attack_number, args.attack, dataset_train, dataset_test, dict_users, net_glob, args, idx = int(idx))
                 attack_number -= 1
                 w = mal_weight[0]  # 取第一個惡意模型權重
             else:  # upload models for benign clients
