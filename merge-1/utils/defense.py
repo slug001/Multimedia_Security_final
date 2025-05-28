@@ -744,7 +744,8 @@ def determine_biggest_cluster(clustering):
             biggest_cluster_size = size_of_current_cluster
     return biggest_cluster_id
 
-def print_vote_matrix(votes, malicious_list, idxs_users, m):
+def print_vote_matrix(votes, malicious_list, idxs_users):
+    m = votes.shape[0]
     print("\n[CrowdGuard] === Validator Global Mapping ===")
     # idxs_users 是本輪選中的全局用戶 ID 列表，長度 m
     # local j -> global idxs_users[j]
@@ -758,19 +759,20 @@ def print_vote_matrix(votes, malicious_list, idxs_users, m):
         print(f"Validator {j} (Global {idxs_users[j]}): {votes[j].tolist()}")
     print("[CrowdGuard] ============================\n")
 
-def save_file_vote_matrix(votes, malicious_list, idxs_users, m, f):
-    f.write("\n[CrowdGuard] === Validator Global Mapping ===")
+def save_file_vote_matrix(votes, malicious_list, idxs_users, f):
+    m = votes.shape[0]
+    f.write("\n[CrowdGuard] === Validator Global Mapping ===\n")
     # idxs_users 是本輪選中的全局用戶 ID 列表，長度 m
     # local j -> global idxs_users[j]
     for j in range(m):
         global_uid = idxs_users[j]
         true_type = "MALICIOUS" if global_uid in malicious_list else "BENIGN"
-        print(f"Validator {j} → Global User {global_uid}: True={true_type}")
-    f.write("[CrowdGuard] ============================\n")
-    f.write("[CrowdGuard] === Vote Matrix Summary ===")
+        f.write(f"Validator {j} → Global User {global_uid}: True={true_type}\n")
+    f.write("[CrowdGuard] ============================\n\n")
+    f.write("[CrowdGuard] === Vote Matrix Summary ===\n")
     for j in range(m):
-        print(f"Validator {j} (Global {idxs_users[j]}): {votes[j].tolist()}")
-    f.write("[CrowdGuard] ============================\n")
+        f.write(f"Validator {j} (Global {idxs_users[j]}): {votes[j].tolist()}\n")
+    f.write("[CrowdGuard] ============================\n\n")
 
 # CrowdGuard defense using the utility functions
 def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_users, malicious_list, args, debug=False):
@@ -811,13 +813,13 @@ def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_use
             debug=debug
         )
         if debug:
-            print(f"[CrowdGuard] [Validator {j} → Global User {idxs_users[j]}] detected poisoned models: {poisoned} → by Global Users {idxs_users[poisoned]}")
+            print(f"[CrowdGuard] [Validator {j} → Global User {idxs_users[j]}] detected poisoned models: {poisoned} → by Global Users {[ idxs_users[i] for i in poisoned ]}")
         # Build vote row: 1 for benign (including self), 0 for poisoned
         for i in range(m):
             votes[j, i] = 1 if (i == j or i not in poisoned) else 0
     # 在 crowdguard() 的 votes 建構後，直接印出對應關係
     if debug:
-        print_vote_matrix(votes, malicious_list, idxs_users, m)
+        print_vote_matrix(votes, malicious_list, idxs_users)
 
     # === 3) 堆疊式聚类 & 最終投票 ===
     # 3.1 Agglomerative → 選出 majority_validators
@@ -857,15 +859,15 @@ def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_use
     kept = [i for i, v in enumerate(final_votes) if v==1]
     filtered_updates = [w_updates[i] for i in kept]
     if debug:
-        print(f"[CrowdGuard] Kept indices: {kept} → Kept Global Users {idxs_users[kept]}")
+        print(f"[CrowdGuard] Kept indices: {kept} → Kept Global Users {[idxs_users[i] for i in kept]}")
         pruned = [i for i in range(m) if i not in kept]
-        print(f"[CrowdGuard] Pruned count: {len(pruned)}, Pruned indices: {pruned} → Pruned Global Users {idxs_users[pruned]}")
+        print(f"[CrowdGuard] Pruned count: {len(pruned)}, Pruned indices: {pruned} → Pruned Global Users {[idxs_users[i] for i in pruned]}")
     with open(f'./{args.save}/crowdguard_log.txt', 'a') as f:
         f.write("=== CrowdGuard Round Info ===\n")
-        save_file_vote_matrix(votes, malicious_list, idxs_users, m, f)
-        f.write(f"Final kept indices: {kept} → Kept Global Users {idxs_users[kept]}\n")
+        save_file_vote_matrix(votes, malicious_list, idxs_users, f)
+        f.write(f"Final kept indices: {kept} → Kept Global Users {[idxs_users[i] for i in kept]}\n")
         pruned = [i for i in range(m) if i not in kept]
-        f.write(f"Pruned count: {len(pruned)}, Pruned indices: {pruned} → Pruned Global Users {idxs_users[pruned]}\n")
+        f.write(f"Pruned count: {len(pruned)}, Pruned indices: {pruned} → Pruned Global Users {[idxs_users[i] for i in pruned]}\n")
         f.write(f"Validators kept: {majority_validators}\n\n")
     
     import gc
