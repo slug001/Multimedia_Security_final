@@ -438,7 +438,7 @@ class CrowdGuardClientValidation:
     def validate_models(global_model, models, own_client_index, local_data, device, debug=False):
         with torch.no_grad():  # ⭐️ 重點：包住整段推論與 distance 計算
             if debug:
-                print(f"\n[CrowdGuard] ===== Client {own_client_index} Start Validation =====")
+                print(f"\n[CrowdGuard] ===== Validator {own_client_index} Start Validation =====")
 
             # Step 1: 預測模型層輸出
             if debug:
@@ -475,8 +475,8 @@ class CrowdGuardClientValidation:
                                                                         own_client_index,
                                                                         distances_by_metric, verbose=True)
             if debug:
-                print(f"[CrowdGuard] Client {own_client_index} detected {len(result)} poisoned models: {result}")
-                print(f"[CrowdGuard] ===== Client {own_client_index} Validation Finished =====\n")
+                print(f"[CrowdGuard] Validator {own_client_index} detected {len(result)} poisoned models: {result}")
+                print(f"[CrowdGuard] ===== Validator {own_client_index} Validation Finished =====\n")
             
             import gc
             torch.cuda.empty_cache()

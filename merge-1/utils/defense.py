@@ -758,6 +758,20 @@ def print_vote_matrix(votes, malicious_list, idxs_users, m):
         print(f"Validator {j} (Global {idxs_users[j]}): {votes[j].tolist()}")
     print("[CrowdGuard] ============================\n")
 
+def save_file_vote_matrix(votes, malicious_list, idxs_users, m, f):
+    f.write("\n[CrowdGuard] === Validator Global Mapping ===")
+    # idxs_users 是本輪選中的全局用戶 ID 列表，長度 m
+    # local j -> global idxs_users[j]
+    for j in range(m):
+        global_uid = idxs_users[j]
+        true_type = "MALICIOUS" if global_uid in malicious_list else "BENIGN"
+        print(f"Validator {j} → Global User {global_uid}: True={true_type}")
+    f.write("[CrowdGuard] ============================\n")
+    f.write("[CrowdGuard] === Vote Matrix Summary ===")
+    for j in range(m):
+        print(f"Validator {j} (Global {idxs_users[j]}): {votes[j].tolist()}")
+    f.write("[CrowdGuard] ============================\n")
+
 # CrowdGuard defense using the utility functions
 def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_users, malicious_list, args, debug=False):
     if debug:
@@ -787,7 +801,7 @@ def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_use
     global_model=copy.deepcopy(global_model_copy).to(args.device)
     for j in range(m):
         if debug:
-            print(f"[CrowdGuard] [Validator {j}] start validating against global model")
+            print(f"[CrowdGuard] [Validator {j} → Global User {idxs_users[j]}] start validating against global model")
         poisoned = CrowdGuardClientValidation.validate_models(
             global_model=global_model,
             models=models,
@@ -797,7 +811,7 @@ def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_use
             debug=debug
         )
         if debug:
-            print(f"[CrowdGuard] [Validator {j}] detected poisoned models: {poisoned}")
+            print(f"[CrowdGuard] [Validator {j} → Global User {idxs_users[j]}] detected poisoned models: {poisoned} → by Global Users {idxs_users[poisoned]}")
         # Build vote row: 1 for benign (including self), 0 for poisoned
         for i in range(m):
             votes[j, i] = 1 if (i == j or i not in poisoned) else 0
@@ -843,15 +857,15 @@ def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_use
     kept = [i for i, v in enumerate(final_votes) if v==1]
     filtered_updates = [w_updates[i] for i in kept]
     if debug:
-        print(f"[CrowdGuard] Kept indices: {kept}")
+        print(f"[CrowdGuard] Kept indices: {kept} → Kept Global Users {idxs_users[kept]}")
         pruned = [i for i in range(m) if i not in kept]
-        print(f"[CrowdGuard] Pruned count: {len(pruned)}, Pruned indices: {pruned}")
+        print(f"[CrowdGuard] Pruned count: {len(pruned)}, Pruned indices: {pruned} → Pruned Global Users {idxs_users[pruned]}")
     with open(f'./{args.save}/crowdguard_log.txt', 'a') as f:
         f.write("=== CrowdGuard Round Info ===\n")
-        f.write(f"Vote matrix:\n{votes.tolist()}\n")
-        f.write(f"Final kept indices: {kept}\n")
+        save_file_vote_matrix(votes, malicious_list, idxs_users, m, f)
+        f.write(f"Final kept indices: {kept} → Kept Global Users {idxs_users[kept]}\n")
         pruned = [i for i in range(m) if i not in kept]
-        f.write(f"Pruned count: {len(pruned)}, Pruned indices: {pruned}\n")
+        f.write(f"Pruned count: {len(pruned)}, Pruned indices: {pruned} → Pruned Global Users {idxs_users[pruned]}\n")
         f.write(f"Validators kept: {majority_validators}\n\n")
     
     import gc
