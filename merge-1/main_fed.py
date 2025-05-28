@@ -258,7 +258,7 @@ if __name__ == '__main__':
         
         mal_weight=[]
         mal_loss=[]
-        idxs_final_users = np.ndarray(_ShapeLike=idxs_users, DTypeLike=idxs_users)
+        idxs_final_users = np.array(idxs_users)
         for num_turn, idx in enumerate(idxs_users):
             attacker_idx = idx
 
