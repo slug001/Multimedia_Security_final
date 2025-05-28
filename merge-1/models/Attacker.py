@@ -475,4 +475,4 @@ def attacker(list_mal_client, num_mal, attack_type, dataset_train, dataset_test,
         temp_w = [w for i in range(num_mal)]
         w = temp_w
     
-    return w, loss, args.attack_layers
+    return w, loss, args.attack_layers, idx

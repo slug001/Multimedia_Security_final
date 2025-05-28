@@ -261,13 +261,13 @@ def layer_multi_krum(layer_gradients, n_attackers, args, multi_k=False):
 
 def multi_krum(gradients, n_attackers, args, multi_k=False):
     grads = flatten_grads(gradients)
-    print("[NOW_DBUGGING] multi_krum start: len(grads)=", len(grads), "n_attackers=", n_attackers)
+    print("[NOW_DEBUGGING] multi_krum start: len(grads)=", len(grads), "n_attackers=", n_attackers)
     candidates = []
     candidate_indices = []
     remaining_updates = torch.from_numpy(grads)
     # 确保 grads 不空
     if len(remaining_updates) == 0:
-        raise RuntimeError("[NOW_DBUGGING] multi_krum: no updates to defend against!")
+        raise RuntimeError("[NOW_DEBUGGING] multi_krum: no updates to defend against!")
     all_indices = np.arange(len(grads))
     
     score_record = None
@@ -275,7 +275,7 @@ def multi_krum(gradients, n_attackers, args, multi_k=False):
     entered = False
     while len(remaining_updates) > 2 * n_attackers + 2:
         entered = True
-        print("[NOW_DBUGGING] Entering krum loop; remaining_updates=", len(remaining_updates))
+        print("[NOW_DEBUGGING] Entering krum loop; remaining_updates=", len(remaining_updates))
         torch.cuda.empty_cache()
         distances = []
         for update in remaining_updates:
@@ -289,7 +289,7 @@ def multi_krum(gradients, n_attackers, args, multi_k=False):
         distances = torch.sort(distances, dim=1)[0]
         scores = torch.sum(
             distances[:, :len(remaining_updates) - 2 - n_attackers], dim=1)
-        print("[NOW_DBUGGING] Computed scores:", scores)
+        print("[NOW_DEBUGGING] Computed scores:", scores)
         
         if args.log_distance == True and score_record == None:
             print('defense.py line149 (krum distance scores):', scores)
@@ -318,7 +318,7 @@ def multi_krum(gradients, n_attackers, args, multi_k=False):
 
     # 在使用 scores 之前再检查一次
     if 'scores' not in locals():
-        raise RuntimeError("[NOW_DBUGGING] multi_krum: scores was never computed!")
+        raise RuntimeError("[NOW_DEBUGGING] multi_krum: scores was never computed!")
     for i in range(len(scores)):
         if i < num_malicious_clients:
             args.mal_score += scores[i]
@@ -766,8 +766,12 @@ def print_vote_matrix(votes, malicious_list, idxs_users):
         print(f"Validator {j} → Global User {global_uid}: True={true_type}")
     print("[CrowdGuard] ============================\n")
     print("[CrowdGuard] === Vote Matrix Summary ===")
+    header = "Validator (Global UID): " + " ".join(f"{uid:>3}" for uid in idxs_users)
+    print(header)
     for j in range(m):
-        print(f"Validator {j} (Global {idxs_users[j]}): {votes[j].tolist()}")
+        vote_row = votes[j]
+        votes_str = " ".join(f"{v:>3}" for v in vote_row)
+        print(f"Validator {j} (Global {idxs_users[j]}): {votes_str}")
     print("[CrowdGuard] ============================\n")
 
 def save_file_vote_matrix(votes, malicious_list, idxs_users, f):
@@ -793,6 +797,7 @@ def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_use
 
     # === 1) 重建模型 & DataLoader ===
     models, loaders = [], []
+    uid_to_model_index = {}
     for local_pos, delta in enumerate(w_updates):
         real_uid = idxs_users[local_pos]
         # Li = Gt + Δi
@@ -807,28 +812,32 @@ def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_use
         # Di：用 real_uid 取子集
         indices = sorted(list(dict_users[real_uid]))
         subset = Subset(dataset_train, indices)
-        print(f"[NOW_DEBUGGING] Client {real_uid} has {len(dict_users[real_uid])} samples")
+        if debug:
+            print(f"[DEBUG] Client {real_uid} has {len(indices)} samples")
         loaders.append(DataLoader(subset, batch_size=args.local_bs, shuffle=False))
+
+        uid_to_model_index[real_uid] = local_pos
 
     # === 2) HLBIM 分析 & 投票 ===
     votes = np.zeros((m, m), dtype=int)
     global_model=copy.deepcopy(global_model_copy).to(args.device)
-    for j in range(m):
+    for uid in idxs_users:
+        model_index = uid_to_model_index[uid]
         if debug:
-            print(f"[CrowdGuard] [Validator {j} → Global User {idxs_users[j]}] start validating against global model")
+            print(f"[CrowdGuard] [Validator {model_index} → Global User {uid}] start validating against global model")
         poisoned = CrowdGuardClientValidation.validate_models(
             global_model=global_model,
             models=models,
-            own_client_index=j,
-            local_data=loaders[j],
+            own_client_index=model_index,
+            local_data=loaders[model_index],
             device=args.device,
             debug=debug
         )
         if debug:
-            print(f"[CrowdGuard] [Validator {j} → Global User {idxs_users[j]}] detected poisoned models: {poisoned} → by Global Users {[ idxs_users[i] for i in poisoned ]}")
+            print(f"[CrowdGuard] [Validator {model_index} → Global User {uid}] detected poisoned models: {poisoned} → by Global Users {[idxs_users[i] for i in poisoned]}")
         # Build vote row: 1 for benign (including self), 0 for poisoned
         for i in range(m):
-            votes[j, i] = 1 if (i == j or i not in poisoned) else 0
+            votes[model_index, i] = 1 if (i == model_index or i not in poisoned) else 0
     # 在 crowdguard() 的 votes 建構後，直接印出對應關係
     if debug:
         print_vote_matrix(votes, malicious_list, idxs_users)

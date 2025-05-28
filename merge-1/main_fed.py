@@ -138,7 +138,8 @@ if __name__ == '__main__':
         dataset_test = datasets.CIFAR10(
             '../data/cifar', train=False, download=True, transform=trans_cifar)
         if args.iid:
-            dict_users = np.load('./data/iid_cifar.npy', allow_pickle=True).item()
+            # dict_users = np.load('./data/iid_cifar.npy', allow_pickle=True).item()
+            dict_users = cifar_iid(dataset_train, args.num_users)
         else:
             # dict_users = np.load('./data/non_iid_cifar.npy', allow_pickle=True).item()
             dict_users = cifar_noniid([x[1] for x in dataset_train], args.num_users, 10, args.p)
@@ -160,6 +161,12 @@ if __name__ == '__main__':
     else:
         exit('Error: unrecognized dataset')
     img_size = dataset_train[0][0].shape
+
+    # ===== 在这里打印每个 client 的样本索引 =====
+    print("=== [main_fed] smaple index 'preview' of each client ===")
+    for uid in sorted(dict_users.keys()):
+        print(f"Client {uid}: {sorted(dict_users[uid])[:15]}")
+    print("============================================")
 
     # build model
     if args.model == 'VGG' and args.dataset == 'cifar':
@@ -220,6 +227,7 @@ if __name__ == '__main__':
     malicious_list = []  # list of the index of malicious clients
     for i in range(int(args.num_users * args.malicious)):
         malicious_list.append(i)
+    print(f"[Attacker] malicious global users' UID: {malicious_list}")
 
     if args.all_clients:
         print("Aggregation over all clients")
@@ -233,8 +241,6 @@ if __name__ == '__main__':
         
         m = max(int(args.frac * args.num_users), 1)  # number of clients in each round
         idxs_users = np.random.choice(range(args.num_users), m, replace=False)  # select the clients for a single round
-        malicious_in_round = [uid for uid in idxs_users if uid in malicious_list]
-        print(f"[NOW_DEBUGGING] malicious global users' UID in this round: {malicious_in_round}")
 
         if backdoor_begin_acc < val_acc_list[-1]:  # start attack only when Acc overtakes backdoor_begin_acc
             backdoor_begin_acc = 0
@@ -248,10 +254,14 @@ if __name__ == '__main__':
                 attack_number = attack_number
             else:
                 attack_number = 0
+        print(f"[Attacker] number of attackers / participants: {attack_number} / {m}") # attacker can to control the number of attackers???
+        
         mal_weight=[]
         mal_loss=[]
-        printed_debug = False
+        idxs_final_users = np.ndarray(_ShapeLike=idxs_users, DTypeLike=idxs_users)
         for num_turn, idx in enumerate(idxs_users):
+            attacker_idx = idx
+
             if attack_number > 0:  # upload models for malicious clients
                 args.iter = iter                
                 m_idx = None
@@ -259,24 +269,22 @@ if __name__ == '__main__':
                 執行後門攻擊（包括 LSA 和自適應 BC 層攻擊）的核心步驟。
                 它會返回惡意客戶端生成的模型權重列表 (mal_weight)、損失和更新後的 args.attack_layers。
                 """
-                mal_weight, loss, args.attack_layers = attacker(malicious_list, attack_number, args.attack, dataset_train, dataset_test, dict_users, net_glob, args, idx = m_idx)
+                # when m_idx = None, attacker randomly chooses an idx to attack
+                mal_weight, loss, args.attack_layers, attacker_idx = attacker(malicious_list, attack_number, args.attack, dataset_train, dataset_test, dict_users, net_glob, args, idx = m_idx)
                 attack_number -= 1
                 w = mal_weight[0]  # 取第一個惡意模型權重
             else:  # upload models for benign clients
-                if not printed_debug:
-                    print("[NOW_DBUGGING] ---- Debug dump ----")
-                    print("[NOW_DBUGGING] dict_users keys:", sorted(dict_users.keys()))
-                    print("[NOW_DBUGGING] idxs_users:", idxs_users)
-                    print(f"[NOW_DBUGGING] Loop num_turn={num_turn}, idx={idx} (type: {type(idx)})")
-                    print(f"[NOW_DBUGGING] m={m}, len(dict_users)={len(dict_users)}")
-                    printed_debug = True
                 local = LocalUpdate(
                     args=args, dataset=dataset_train, idxs=dict_users[idx])
                 w, loss = local.train(
                     net=copy.deepcopy(net_glob).to(args.device))
+            
+            true_type = "MALICIOUS" if idx in malicious_list else "BENIGN"
+            print(f"[Attacker] {true_type} global user {attacker_idx} with BENIGN update")
+            idxs_final_users[num_turn] = attacker_idx
             w_updates.append(get_update(w, w_glob)) # 計算並儲存模型更新。
             if args.all_clients:
-                w_locals[idx] = copy.deepcopy(w)
+                w_locals[idx] = copy.deepcopy(w) # THIS ONLY WORKS WHEN attacker_idx == idx???
             else:
                 w_locals.append(copy.deepcopy(w)) # 儲存完整的本地模型權重。
             loss_locals.append(copy.deepcopy(loss)) # 儲存本地損失。
@@ -295,12 +303,12 @@ if __name__ == '__main__':
                 global_model_copy = copy.deepcopy(net_glob).to(args.device)
                 # 傳入 idxs_users 讓 crowdguard 能對應每個 local_pos 到真實用戶
                 filtered_updates, kept_indices = crowdguard(
-                    w_updates,
-                    global_model_copy,
-                    dataset_train,
-                    dict_users,
-                    idxs_users,
-                    malicious_list,
+                    w_updates, # local models
+                    global_model_copy, # global models
+                    dataset_train, # to get each validator their own data
+                    dict_users, # to get each validator their own data
+                    idxs_final_users, # crowdguard is assumed to know who are the participants??? or not really?
+                    malicious_list, # only for debug print
                     args,
                     debug=args.debug
                 )
