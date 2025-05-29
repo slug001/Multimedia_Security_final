@@ -784,12 +784,17 @@ def save_file_vote_matrix(votes, malicious_list, idxs_users, are_attackers, f):
     # local j -> global idxs_users[j]
     for j in range(m):
         global_uid = idxs_users[j]
+        behavior = "ATTACK" if are_attackers[j] else "NO ATTACK"
         true_type = "MALICIOUS" if global_uid in malicious_list else "BENIGN"
-        f.write(f"Validator {j} → Global User {global_uid}: True={true_type}\n")
+        f.write(f"Validator {j} → Global User {global_uid}: True={true_type} with {behavior}\n")
     f.write("[CrowdGuard] ============================\n\n")
     f.write("[CrowdGuard] === Vote Matrix Summary ===\n")
+    header = "Validator (Global UID): " + " ".join(f"{uid:>3}" for uid in idxs_users) + "\n"
+    f.write(header)
     for j in range(m):
-        f.write(f"Validator {j} (Global {idxs_users[j]}): {votes[j].tolist()}\n")
+        vote_row = votes[j]
+        votes_str = " ".join(f"{v:>3}" for v in vote_row)
+        f.write(f"Validator {j} (Global {idxs_users[j]}): {votes_str}\n")
     f.write("[CrowdGuard] ============================\n\n")
 
 # CrowdGuard defense using the utility functions
