@@ -163,9 +163,9 @@ if __name__ == '__main__':
     img_size = dataset_train[0][0].shape
 
     # ===== 在这里打印每个 client 的样本索引 =====
-    print("=== [main_fed] smaple index 'preview' of each client ===")
+    print("=== MAIN_FED smaple index 'preview' of each client ===")
     for uid in sorted(dict_users.keys()):
-        print(f"Client {uid}: {sorted(dict_users[uid])[:15]}")
+        print(f"Client {uid}: {int(sorted(dict_users[uid])[:15])}")
     print("============================================")
 
     # build model
@@ -259,12 +259,12 @@ if __name__ == '__main__':
         mal_weight=[]
         mal_loss=[]
         idxs_final_users = np.array(idxs_users)
-        is_attacker = 0
+        are_attackers = np.zeros(4, dtype=bool)
         for num_turn, idx in enumerate(idxs_users):
             attacker_idx = idx
 
             if attack_number > 0:  # upload models for malicious clients
-                is_attacker = 1
+                are_attackers[num_turn] = 1
                 args.iter = iter                
                 m_idx = None
                 """
@@ -276,13 +276,13 @@ if __name__ == '__main__':
                 attack_number -= 1
                 w = mal_weight[0]  # 取第一個惡意模型權重
             else:  # upload models for benign clients
-                is_attacker = 0
+                are_attackers[num_turn] = 0
                 local = LocalUpdate(
                     args=args, dataset=dataset_train, idxs=dict_users[idx])
                 w, loss = local.train(
                     net=copy.deepcopy(net_glob).to(args.device))
             
-            behavior = "ATTACK" if is_attacker else "NO ATTACK"
+            behavior = "ATTACK" if are_attackers[num_turn] else "NO ATTACK"
             true_type = "MALICIOUS" if attacker_idx in malicious_list else "BENIGN"
             print(f"[Attacker] {true_type} global user {attacker_idx} with {behavior}")
             idxs_final_users[num_turn] = attacker_idx
@@ -313,6 +313,7 @@ if __name__ == '__main__':
                     dict_users, # to get each validator their own data
                     idxs_final_users, # crowdguard is assumed to know who are the participants??? or not really?
                     malicious_list, # only for debug print
+                    are_attackers, # only for debug print
                     args,
                     debug=args.debug
                 )

@@ -755,15 +755,17 @@ def determine_biggest_cluster(clustering):
             biggest_cluster_size = size_of_current_cluster
     return biggest_cluster_id
 
-def print_vote_matrix(votes, malicious_list, idxs_users):
+def print_vote_matrix(votes, malicious_list, idxs_users, are_attackers):
     m = votes.shape[0]
+    assert len(are_attackers) == len(idxs_users)
     print("\n[CrowdGuard] === Validator Global Mapping ===")
     # idxs_users 是本輪選中的全局用戶 ID 列表，長度 m
     # local j -> global idxs_users[j]
     for j in range(m):
         global_uid = idxs_users[j]
+        behavior = "ATTACK" if are_attackers[j] else "NO ATTACK"
         true_type = "MALICIOUS" if global_uid in malicious_list else "BENIGN"
-        print(f"Validator {j} → Global User {global_uid}: True={true_type}")
+        print(f"Validator {j} → Global User {global_uid}: True={true_type} with {behavior}")
     print("[CrowdGuard] ============================\n")
     print("[CrowdGuard] === Vote Matrix Summary ===")
     header = "Validator (Global UID): " + " ".join(f"{uid:>3}" for uid in idxs_users)
@@ -774,8 +776,9 @@ def print_vote_matrix(votes, malicious_list, idxs_users):
         print(f"Validator {j} (Global {idxs_users[j]}): {votes_str}")
     print("[CrowdGuard] ============================\n")
 
-def save_file_vote_matrix(votes, malicious_list, idxs_users, f):
+def save_file_vote_matrix(votes, malicious_list, idxs_users, are_attackers, f):
     m = votes.shape[0]
+    assert len(are_attackers) == len(idxs_users)
     f.write("\n[CrowdGuard] === Validator Global Mapping ===\n")
     # idxs_users 是本輪選中的全局用戶 ID 列表，長度 m
     # local j -> global idxs_users[j]
@@ -790,7 +793,7 @@ def save_file_vote_matrix(votes, malicious_list, idxs_users, f):
     f.write("[CrowdGuard] ============================\n\n")
 
 # CrowdGuard defense using the utility functions
-def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_users, malicious_list, args, debug=False):
+def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_users, malicious_list, are_attackers, args, debug=False):
     if debug:
         print("[CrowdGuard] Running defense with debug info ON")
     m = len(w_updates)
@@ -840,7 +843,7 @@ def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_use
             votes[model_index, i] = 1 if (i == model_index or i not in poisoned) else 0
     # 在 crowdguard() 的 votes 建構後，直接印出對應關係
     if debug:
-        print_vote_matrix(votes, malicious_list, idxs_users)
+        print_vote_matrix(votes, malicious_list, idxs_users, are_attackers)
 
     # === 3) 堆疊式聚类 & 最終投票 ===
     # 3.1 Agglomerative → 選出 majority_validators
@@ -885,11 +888,11 @@ def crowdguard(w_updates, global_model_copy, dataset_train, dict_users, idxs_use
         print(f"[CrowdGuard] Pruned count: {len(pruned)}, Pruned indices: {pruned} → Pruned Global Users {[idxs_users[i] for i in pruned]}")
     with open(f'./{args.save}/crowdguard_log.txt', 'a') as f:
         f.write("=== CrowdGuard Round Info ===\n")
-        save_file_vote_matrix(votes, malicious_list, idxs_users, f)
+        save_file_vote_matrix(votes, malicious_list, idxs_users, are_attackers, f)
+        f.write(f"Validators kept (after clustering) as DBScan Input: {majority_validators}\n")
         f.write(f"Final kept indices: {kept} → Kept Global Users {[idxs_users[i] for i in kept]}\n")
         pruned = [i for i in range(m) if i not in kept]
-        f.write(f"Pruned count: {len(pruned)}, Pruned indices: {pruned} → Pruned Global Users {[idxs_users[i] for i in pruned]}\n")
-        f.write(f"Validators kept: {majority_validators}\n\n")
+        f.write(f"Pruned count: {len(pruned)}, Pruned indices: {pruned} → Pruned Global Users {[idxs_users[i] for i in pruned]}\n\n")
     
     import gc
     import torch
