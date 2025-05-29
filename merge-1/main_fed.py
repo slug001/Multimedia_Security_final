@@ -165,7 +165,7 @@ if __name__ == '__main__':
     # ===== 在这里打印每个 client 的样本索引 =====
     print("=== MAIN_FED smaple index 'preview' of each client ===")
     for uid in sorted(dict_users.keys()):
-        print(f"Client {uid}: {int(sorted(dict_users[uid])[:15])}")
+        print(f"Client {uid}: {list(map(int, sorted(dict_users[uid])[:15]))}")
     print("============================================")
 
     # build model
