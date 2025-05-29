@@ -284,7 +284,7 @@ if __name__ == '__main__':
             
             behavior = "ATTACK" if is_attacker else "NO ATTACK"
             true_type = "MALICIOUS" if attacker_idx in malicious_list else "BENIGN"
-            print(f"[Attacker] {true_type} global user {attacker_idx} with behavior")
+            print(f"[Attacker] {true_type} global user {attacker_idx} with {behavior}")
             idxs_final_users[num_turn] = attacker_idx
             w_updates.append(get_update(w, w_glob)) # 計算並儲存模型更新。
             if args.all_clients:
