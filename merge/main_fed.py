@@ -259,7 +259,7 @@ if __name__ == '__main__':
         mal_weight=[]
         mal_loss=[]
         idxs_final_users = np.array(idxs_users)
-        are_attackers = np.zeros(4, dtype=bool)
+        are_attackers = np.zeros(len(idxs_users), dtype=bool)
         for num_turn, idx in enumerate(idxs_users):
             attacker_idx = idx
 
